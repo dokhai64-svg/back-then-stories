@@ -1,0 +1,13 @@
+# Production deploy checklist
+- Point document root to `public/`, never project root.
+- `APP_ENV=production`, `APP_DEBUG=false`, HTTPS APP_URL.
+- MySQL production database; run `php artisan migrate --force`.
+- `php artisan storage:link`.
+- Strong admin password; least-privilege database user.
+- Cloudflare proxy + cache static media, not `/admin`.
+- Daily database/media backup.
+- Replace starter Privacy/Terms/Contact pages with real policies.
+- Verify copyright/licensing for every image and embedded asset.
+- Connect Search Console, GA4/GTM only after consent requirements are handled.
+- Keep GAM/ad slots OFF until your own monetization account/partner approves the site.
+- Before monetization review: test mobile, Core Web Vitals, broken links, sitemap, robots, ads.txt, author/editorial pages.
