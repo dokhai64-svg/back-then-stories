@@ -1,0 +1,3 @@
+<?php
+namespace App\Http\Controllers; use App\Models\Article; use App\Services\SiteResolver;
+class ArticleController extends Controller { public function show(string $slug,SiteResolver $resolver){$site=$resolver->current(); abort_unless($site,404); $article=Article::live()->where('site_id',$site->id)->where('slug',$slug)->with(['artist','category','author'])->firstOrFail(); $related=Article::live()->where('site_id',$site->id)->whereKeyNot($article->id)->when($article->category_id,fn($q)=>$q->where('category_id',$article->category_id))->latest('published_at')->take(4)->get(); return view('articles.show',compact('site','article','related'));} }

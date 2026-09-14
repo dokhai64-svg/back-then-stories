@@ -1,0 +1,3 @@
+<?php
+namespace App\Console\Commands; use App\Models\User; use Illuminate\Console\Command; use Illuminate\Support\Facades\Hash;
+class CreateAdmin extends Command { protected $signature='app:create-admin'; protected $description='Create or update an admin user'; public function handle():int{$name=$this->ask('Name','Administrator');$email=$this->ask('Email',env('ADMIN_EMAIL','admin@example.com'));$password=$this->secret('Password');if(!$password){$this->error('Password is required.');return self::FAILURE;}User::updateOrCreate(['email'=>$email],['name'=>$name,'password'=>Hash::make($password),'role'=>'admin']);$this->info('Admin ready: '.$email);return self::SUCCESS;} }

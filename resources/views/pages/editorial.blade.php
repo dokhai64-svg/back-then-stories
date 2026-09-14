@@ -1,0 +1,1 @@
+@extends('layouts.app') @section('title','Editorial Policy') @section('content')<main class="article"><h1>Editorial Policy</h1><div class="body"><p>We aim to verify factual claims, distinguish reporting from commentary, correct meaningful errors, and publish content for readers rather than search engines.</p></div></main>@endsection

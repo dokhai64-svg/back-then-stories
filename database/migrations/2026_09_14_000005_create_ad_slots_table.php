@@ -1,0 +1,3 @@
+<?php
+use Illuminate\Database\Migrations\Migration; use Illuminate\Database\Schema\Blueprint; use Illuminate\Support\Facades\Schema;
+return new class extends Migration { public function up():void{Schema::create('ad_slots',function(Blueprint $t){$t->id();$t->foreignId('site_id')->constrained()->cascadeOnDelete();$t->string('key');$t->string('label');$t->string('ad_unit_path')->nullable();$t->json('sizes')->nullable();$t->enum('type',['display','anchor','interstitial','rewarded'])->default('display');$t->boolean('enabled')->default(false)->index();$t->timestamps();$t->unique(['site_id','key']);});} public function down():void{Schema::dropIfExists('ad_slots');}};

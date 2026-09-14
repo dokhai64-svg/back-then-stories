@@ -1,0 +1,3 @@
+<?php
+use Illuminate\Database\Migrations\Migration; use Illuminate\Database\Schema\Blueprint; use Illuminate\Support\Facades\Schema;
+return new class extends Migration { public function up():void{Schema::create('media',function(Blueprint $t){$t->id();$t->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();$t->string('disk')->default('public');$t->string('path');$t->string('filename');$t->string('mime_type')->nullable();$t->unsignedBigInteger('size')->default(0);$t->string('alt_text')->nullable();$t->timestamps();});} public function down():void{Schema::dropIfExists('media');}};

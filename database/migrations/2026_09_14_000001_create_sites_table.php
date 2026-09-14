@@ -1,0 +1,3 @@
+<?php
+use Illuminate\Database\Migrations\Migration; use Illuminate\Database\Schema\Blueprint; use Illuminate\Support\Facades\Schema;
+return new class extends Migration { public function up():void{Schema::create('sites',function(Blueprint $t){$t->id();$t->string('name');$t->string('domain')->nullable()->unique();$t->string('logo')->nullable();$t->string('tagline')->nullable();$t->string('contact_email')->nullable();$t->boolean('active')->default(true)->index();$t->boolean('gam_enabled')->default(false);$t->string('gam_network_id')->nullable();$t->string('gtm_container_id')->nullable();$t->string('ga4_measurement_id')->nullable();$t->longText('ads_txt')->nullable();$t->timestamps();});} public function down():void{Schema::dropIfExists('sites');}};

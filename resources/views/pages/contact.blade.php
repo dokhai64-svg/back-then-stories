@@ -1,0 +1,1 @@
+@extends('layouts.app') @section('title','Contact') @section('content')<main class="article"><h1>Contact</h1><div class="body"><p>Use the site contact email configured in the CMS. Replace this page with a contact form before production.</p></div></main>@endsection

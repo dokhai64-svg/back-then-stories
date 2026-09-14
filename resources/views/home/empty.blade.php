@@ -1,0 +1,1 @@
+@extends('layouts.app') @section('content')<main class="article"><h1>Site setup required</h1><p>Create the first Site in the admin panel.</p></main>@endsection

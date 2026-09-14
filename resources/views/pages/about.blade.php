@@ -1,0 +1,1 @@
+@extends('layouts.app') @section('title','About Us') @section('content')<main class="article"><h1>About Us</h1><div class="body"><p>Back Then Stories publishes original, edited stories about classic entertainment, music, television, film and cultural memory.</p></div></main>@endsection

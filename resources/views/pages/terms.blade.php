@@ -1,0 +1,1 @@
+@extends('layouts.app') @section('title','Terms of Use') @section('content')<main class="article"><h1>Terms of Use</h1><div class="body"><p>This page is a starter. Replace it with terms reviewed for your business before launch.</p></div></main>@endsection

@@ -1,0 +1,1 @@
+@extends('layouts.app') @section('title','Privacy Policy') @section('content')<main class="article"><h1>Privacy Policy</h1><div class="body"><p>This page is a starter. Replace it with a policy matching your analytics, advertising, cookies and applicable law before launch.</p></div></main>@endsection
