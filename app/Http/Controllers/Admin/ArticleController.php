@@ -716,6 +716,94 @@ class ArticleController extends Controller
         ]);
     }
 
+    public function cloneArticle(
+        Article $article
+    ) {
+        $article->load([
+            'chapters',
+        ]);
+
+        $clone =
+            DB::transaction(
+                function () use ($article) {
+                    $copy =
+                        $article->replicate([
+                            'slug',
+                            'status',
+                            'published_at',
+                            'views',
+                            'featured',
+                            'featured_image',
+                            'created_at',
+                            'updated_at',
+                            'deleted_at',
+                        ]);
+
+                    $copy->title =
+                        Str::limit(
+                            'Copy of '
+                            . $article->title,
+                            255,
+                            ''
+                        );
+
+                    $copy->slug =
+                        $this->uniqueCloneSlug(
+                            (int) $article->site_id,
+                            (string) $article->slug
+                        );
+
+                    $copy->status =
+                        'draft';
+
+                    $copy->published_at =
+                        null;
+
+                    $copy->views =
+                        0;
+
+                    $copy->featured =
+                        false;
+
+                    $copy->featured_image =
+                        $this->copyFeaturedImageForClone(
+                            $article
+                        );
+
+                    $copy->save();
+
+                    foreach (
+                        $article->chapters
+                        as $chapter
+                    ) {
+                        $copy->chapters()
+                            ->create([
+                                'chapter_number' =>
+                                    $chapter->chapter_number,
+                                'title' =>
+                                    $chapter->title,
+                                'body' =>
+                                    $chapter->body,
+                                'views' =>
+                                    0,
+                            ]);
+                    }
+
+                    return $copy;
+                }
+            );
+
+        return redirect()
+            ->route(
+                'admin.articles.edit',
+                $clone
+            )
+            ->with(
+                'ok',
+                'Article cloned as a draft. Review the copy before publishing.'
+            );
+    }
+
     public function destroy(Article $article)
     {
         $article->delete();
@@ -901,6 +989,141 @@ class ArticleController extends Controller
                 Category::orderBy('name')
                     ->get(),
         ];
+    }
+
+    private function uniqueCloneSlug(
+        int $siteId,
+        string $sourceSlug
+    ): string {
+        $base =
+            Str::slug(
+                $sourceSlug
+                . '-copy'
+            )
+            ?: 'article-copy';
+
+        $candidate = $base;
+        $suffix = 2;
+
+        while (
+            Article::withTrashed()
+                ->where(
+                    'site_id',
+                    $siteId
+                )
+                ->where(
+                    'slug',
+                    $candidate
+                )
+                ->exists()
+            ||
+            ArticleAlias::query()
+                ->where(
+                    'site_id',
+                    $siteId
+                )
+                ->where(
+                    'slug',
+                    $candidate
+                )
+                ->exists()
+        ) {
+            $candidate =
+                $base
+                . '-'
+                . $suffix++;
+        }
+
+        return $candidate;
+    }
+
+    private function copyFeaturedImageForClone(
+        Article $article
+    ): ?string {
+        $source =
+            trim(
+                (string) (
+                    $article->featured_image
+                    ?? ''
+                )
+            );
+
+        if ($source === '') {
+            return null;
+        }
+
+        try {
+            if (
+                !Storage::disk('public')
+                    ->exists($source)
+            ) {
+                return null;
+            }
+
+            $extension =
+                mb_strtolower(
+                    pathinfo(
+                        $source,
+                        PATHINFO_EXTENSION
+                    )
+                );
+
+            if (
+                !in_array(
+                    $extension,
+                    [
+                        'jpg',
+                        'jpeg',
+                        'png',
+                        'webp',
+                        'gif',
+                        'avif',
+                    ],
+                    true
+                )
+            ) {
+                $extension = 'webp';
+            }
+
+            $target =
+                'articles/'
+                . Str::uuid()
+                . '.'
+                . $extension;
+
+            $contents =
+                Storage::disk('public')
+                    ->get($source);
+
+            if (
+                $contents === ''
+                || strlen($contents)
+                    > 8 * 1024 * 1024
+            ) {
+                return null;
+            }
+
+            Storage::disk('public')
+                ->put(
+                    $target,
+                    $contents
+                );
+
+            return $target;
+
+        } catch (\Throwable $e) {
+            logger()->warning(
+                'Article clone featured image copy failed',
+                [
+                    'article_id' =>
+                        $article->id,
+                    'message' =>
+                        $e->getMessage(),
+                ]
+            );
+
+            return null;
+        }
     }
 
     private function slug(
