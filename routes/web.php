@@ -31,6 +31,14 @@ Route::get(
     [ArticleController::class, 'show']
 )->name('articles.show');
 
+Route::get(
+    '/story/{slug}/chapter/{chapterNumber}',
+    [ArticleController::class, 'chapter']
+)
+    ->whereNumber('chapterNumber')
+    ->name('articles.chapter');
+
+
 Route::view(
     '/about',
     'pages.about'
@@ -133,6 +141,66 @@ Route::prefix('admin')
                     ->name(
                         'articles.import-url'
                     );
+
+                Route::post(
+                    'articles/{article}/aliases/generate',
+                    [
+                        AdminArticles::class,
+                        'generateAliases',
+                    ]
+                )->name(
+                    'articles.aliases.generate'
+                );
+
+                Route::post(
+                    'articles/{article}/aliases',
+                    [
+                        AdminArticles::class,
+                        'storeAlias',
+                    ]
+                )->name(
+                    'articles.aliases.store'
+                );
+
+                Route::delete(
+                    'articles/{article}/aliases/{alias}',
+                    [
+                        AdminArticles::class,
+                        'destroyAlias',
+                    ]
+                )->name(
+                    'articles.aliases.destroy'
+                );
+
+                Route::post(
+                    'articles/{article}/chapters',
+                    [
+                        AdminArticles::class,
+                        'storeChapter',
+                    ]
+                )->name(
+                    'articles.chapters.store'
+                );
+
+                Route::put(
+                    'articles/{article}/chapters/{chapter}',
+                    [
+                        AdminArticles::class,
+                        'updateChapter',
+                    ]
+                )->name(
+                    'articles.chapters.update'
+                );
+
+                Route::delete(
+                    'articles/{article}/chapters/{chapter}',
+                    [
+                        AdminArticles::class,
+                        'destroyChapter',
+                    ]
+                )->name(
+                    'articles.chapters.destroy'
+                );
 
                 Route::post(
                     'articles/{articleId}/restore',
