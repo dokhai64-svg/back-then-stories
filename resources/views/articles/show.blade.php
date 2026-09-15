@@ -1,7 +1,108 @@
 @extends('layouts.app')
-@section('title',$article->seo_title ?: $article->title) @section('meta',$article->meta_description ?: $article->excerpt) @section('canonical',route('articles.show',$article->slug)) @section('og_type','article') @if($article->featured_image) @section('og_image',asset('storage/'.$article->featured_image)) @endif
-@push('head')<script type="application/ld+json">{!! json_encode(['@context'=>'https://schema.org','@type'=>'Article','headline'=>$article->title,'description'=>$article->meta_description ?: $article->excerpt,'datePublished'=>optional($article->published_at)->toIso8601String(),'dateModified'=>$article->updated_at->toIso8601String(),'author'=>['@type'=>'Person','name'=>$article->author?->name ?? 'Editorial Team'],'publisher'=>['@type'=>'Organization','name'=>$currentSite?->name ?? 'Back Then Stories'],'image'=>$article->featured_image ? [asset('storage/'.$article->featured_image)] : []], JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) !!}</script>@endpush
-@section('content')<article class="article"><div class="kicker">{{ $article->category?->name ?? 'Story' }}</div><h1 style="font-size:44px;line-height:1.08">{{ $article->title }}</h1><p class="deck">{{ $article->excerpt }}</p><div class="meta">{{ optional($article->published_at)->format('F j, Y') }} @if($article->author) · By {{ $article->author->name }} @endif</div>@if($article->featured_image)<img src="{{ asset('storage/'.$article->featured_image) }}" alt="{{ $article->title }}" style="width:100%;margin:24px 0;border-radius:10px">@endif
-@include('partials.ad',['key'=>'banner_top'])<div class="body">{!! $article->body !!}</div>@include('partials.ad',['key'=>'banner_mid'])
-@if($article->youtube_url)<p><a href="{{ $article->youtube_url }}" target="_blank" rel="noopener nofollow">Watch related video</a></p>@endif @include('partials.ad',['key'=>'banner_bot'])
-@if($related->count())<h2>Related Stories</h2>@foreach($related as $r)<div class="story"><h3><a href="{{ route('articles.show',$r->slug) }}">{{ $r->title }}</a></h3></div>@endforeach@endif</article>@endsection
+
+@section('title', $article->seo_title ?: $article->title)
+@section('meta', $article->meta_description ?: $article->excerpt)
+@section('canonical', route('articles.show', $article->slug))
+@section('og_type', 'article')
+
+@if($article->featured_image)
+    @section('og_image', asset('storage/' . $article->featured_image))
+@endif
+
+@push('head')
+<script type="application/ld+json">
+{!! json_encode([
+    '@context' => 'https://schema.org',
+    '@type' => 'Article',
+    'headline' => $article->title,
+    'description' => $article->meta_description ?: $article->excerpt,
+    'datePublished' => optional($article->published_at)->toIso8601String(),
+    'dateModified' => optional($article->updated_at)->toIso8601String(),
+    'author' => [
+        '@type' => 'Person',
+        'name' => $article->author?->name ?? 'Editorial Team',
+    ],
+    'publisher' => [
+        '@type' => 'Organization',
+        'name' => $currentSite?->name ?? 'Back Then Stories',
+    ],
+    'image' => $article->featured_image
+        ? [asset('storage/' . $article->featured_image)]
+        : [],
+], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}
+</script>
+@endpush
+
+@section('content')
+
+<article class="article">
+
+    <div class="kicker">
+        {{ $article->category?->name ?? 'Story' }}
+    </div>
+
+    <h1 style="font-size:44px;line-height:1.08">
+        {{ $article->title }}
+    </h1>
+
+    @if($article->excerpt)
+        <p class="deck">
+            {{ $article->excerpt }}
+        </p>
+    @endif
+
+    <div class="meta">
+        {{ optional($article->published_at)->format('F j, Y') }}
+
+        @if($article->author)
+            · By {{ $article->author->name }}
+        @endif
+    </div>
+
+    @if($article->featured_image)
+        <img
+            src="{{ asset('storage/' . $article->featured_image) }}"
+            alt="{{ $article->title }}"
+            style="width:100%;margin:24px 0;border-radius:10px"
+        >
+    @endif
+
+    @include('partials.ad', ['key' => 'banner_top'])
+
+    <div class="body">
+        {!! $article->body !!}
+    </div>
+
+    @include('partials.ad', ['key' => 'banner_mid'])
+
+    @if($article->youtube_url)
+        <p>
+            <a
+                href="{{ $article->youtube_url }}"
+                target="_blank"
+                rel="noopener nofollow"
+            >
+                Watch related video
+            </a>
+        </p>
+    @endif
+
+    @include('partials.ad', ['key' => 'banner_bot'])
+
+    @if($related->count())
+        <h2>Related Stories</h2>
+
+        @foreach($related as $r)
+            <div class="story">
+                <h3>
+                    <a href="{{ route('articles.show', $r->slug) }}">
+                        {{ $r->title }}
+                    </a>
+                </h3>
+            </div>
+        @endforeach
+    @endif
+
+</article>
+
+@endsection
