@@ -31,6 +31,95 @@
         : [],
 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}
 </script>
+
+<style>
+.article-recommendations {
+    margin-top: 46px;
+    padding-top: 28px;
+    border-top: 1px solid #d9d9d9;
+}
+
+.article-recommendations__title {
+    margin: 0 0 18px;
+    font-size: 22px;
+    line-height: 1.2;
+}
+
+.article-recommendations__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.article-recommendation-card {
+    overflow: hidden;
+    border: 1px solid #dedede;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.article-recommendation-card a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.article-recommendation-card__image,
+.article-recommendation-card__placeholder {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    background: #ececec;
+}
+
+.article-recommendation-card__placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    color: #777;
+    font-size: 11px;
+    text-align: center;
+}
+
+.article-recommendation-card__body {
+    padding: 11px 12px 13px;
+}
+
+.article-recommendation-card__meta {
+    margin-bottom: 6px;
+    color: #8a3527;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.article-recommendation-card__title {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.25;
+}
+
+.article-recommendation-card__excerpt {
+    margin: 7px 0 0;
+    color: #666;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+@media (max-width: 900px) {
+    .article-recommendations__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 560px) {
+    .article-recommendations__grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
 @endpush
 
 @section('content')
@@ -90,17 +179,72 @@
     @include('partials.ad', ['key' => 'banner_bot'])
 
     @if($related->count())
-        <h2>Related Stories</h2>
+        <section
+            class="article-recommendations"
+            aria-labelledby="recommended-stories-title"
+        >
+            <h2
+                id="recommended-stories-title"
+                class="article-recommendations__title"
+            >
+                More Stories You May Like
+            </h2>
 
-        @foreach($related as $r)
-            <div class="story">
-                <h3>
-                    <a href="{{ route('articles.show', $r->slug) }}">
-                        {{ $r->title }}
-                    </a>
-                </h3>
+            <div class="article-recommendations__grid">
+
+                @foreach($related as $r)
+                    <article class="article-recommendation-card">
+
+                        <a
+                            href="{{ route('articles.show', $r->slug) }}"
+                            aria-label="{{ $r->title }}"
+                        >
+                            @if($r->featured_image)
+                                <img
+                                    class="article-recommendation-card__image"
+                                    src="{{ asset('storage/' . $r->featured_image) }}"
+                                    alt="{{ $r->title }}"
+                                    loading="lazy"
+                                >
+                            @else
+                                <div class="article-recommendation-card__placeholder">
+                                    Back Then Stories
+                                </div>
+                            @endif
+                        </a>
+
+                        <div class="article-recommendation-card__body">
+
+                            <div class="article-recommendation-card__meta">
+                                {{ $r->category?->name ?? 'Story' }}
+
+                                @if($r->published_at)
+                                    · {{ $r->published_at->format('M j, Y') }}
+                                @endif
+                            </div>
+
+                            <h3 class="article-recommendation-card__title">
+                                <a href="{{ route('articles.show', $r->slug) }}">
+                                    {{ $r->title }}
+                                </a>
+                            </h3>
+
+                            @if($r->excerpt)
+                                <p class="article-recommendation-card__excerpt">
+                                    {{ \Illuminate\Support\Str::limit(
+                                        strip_tags($r->excerpt),
+                                        105
+                                    ) }}
+                                </p>
+                            @endif
+
+                        </div>
+
+                    </article>
+                @endforeach
+
             </div>
-        @endforeach
+        </section>
     @endif
 
 </article>
