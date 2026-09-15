@@ -263,6 +263,175 @@
     text-decoration:none;
 }
 
+
+.chapter-mode-options{
+    margin-top:10px;
+}
+.chapter-skip-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-top:12px;
+    font-size:12px;
+    font-weight:650;
+}
+.chapter-skip-row input{
+    width:auto;
+}
+.chapter-source-label{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    flex-wrap:wrap;
+}
+.chapter-analyze-tools{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    flex-wrap:wrap;
+}
+.chapter-analyze-tools input{
+    width:58px;
+    min-height:34px;
+    padding:5px 7px;
+    text-align:center;
+}
+.chapter-analyze-btn{
+    border:0;
+    border-radius:999px;
+    min-height:36px;
+    padding:0 15px;
+    background:#f59e0b;
+    color:#fff;
+    font-weight:800;
+    cursor:pointer;
+}
+.chapter-analyze-btn:disabled{
+    opacity:.65;
+    cursor:wait;
+}
+.chapter-builder{
+    margin-top:18px;
+    padding:16px;
+    border:1px solid #dbe3ec;
+    border-radius:12px;
+    background:#fbfdff;
+}
+.chapter-builder-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-bottom:12px;
+}
+.chapter-builder-title{
+    font-size:12px;
+    font-weight:850;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+}
+.chapter-builder-actions{
+    display:flex;
+    gap:7px;
+    align-items:center;
+}
+.chapter-builder-actions input{
+    width:58px;
+    min-height:34px;
+    padding:5px 7px;
+    text-align:center;
+}
+.chapter-empty{
+    padding:28px 16px;
+    border:1px dashed #dbe3ec;
+    border-radius:10px;
+    color:#94a3b8;
+    text-align:center;
+    font-size:12px;
+}
+.chapter-editor-card{
+    overflow:hidden;
+    border:1px solid #dbe3ec;
+    border-radius:11px;
+    background:#fff;
+    margin-top:10px;
+}
+.chapter-editor-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    padding:10px 12px;
+    border-bottom:1px solid #edf1f5;
+    background:#f8fafc;
+}
+.chapter-number{
+    font-size:12px;
+    font-weight:850;
+}
+.chapter-head-actions{
+    display:flex;
+    align-items:center;
+    gap:6px;
+}
+.chapter-head-actions button{
+    min-height:29px;
+    padding:0 9px;
+    border:1px solid #dbe3ec;
+    border-radius:7px;
+    background:#fff;
+    color:#475569;
+    font-size:10px;
+    font-weight:700;
+    cursor:pointer;
+}
+.chapter-head-actions button.danger{
+    color:#b91c1c;
+}
+.chapter-editor-body{
+    padding:12px;
+}
+.chapter-title-field{
+    margin-bottom:9px;
+}
+.chapter-mini-toolbar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:5px;
+    margin-bottom:7px;
+}
+.chapter-mini-toolbar button{
+    min-width:31px;
+    min-height:29px;
+    padding:0 7px;
+    border:1px solid #dbe3ec;
+    border-radius:6px;
+    background:#fff;
+    font-size:10px;
+    cursor:pointer;
+}
+.chapter-rich-editor{
+    min-height:180px;
+    padding:12px;
+    border:1px solid #dbe3ec;
+    border-radius:8px;
+    background:#fff;
+    line-height:1.65;
+    outline:none;
+}
+.chapter-rich-editor:focus{
+    border-color:#94a3b8;
+    box-shadow:0 0 0 2px rgba(148,163,184,.13);
+}
+.chapter-builder-note{
+    margin-top:9px;
+    color:#64748b;
+    font-size:11px;
+    line-height:1.45;
+}
+
 </style>
 
 <form
@@ -449,6 +618,41 @@
                     >
                         Chapter mode creates separate public pages with Previous / Next navigation.
                     </div>
+
+                    <div
+                        id="chapterModeOptions"
+                        class="chapter-mode-options"
+                        style="{{
+                            $contentMode === 'chapter'
+                                ? ''
+                                : 'display:none'
+                        }}"
+                    >
+                        <label class="chapter-skip-row">
+                            <input
+                                type="checkbox"
+                                name="skip_intro"
+                                value="1"
+                                @checked(
+                                    old(
+                                        'skip_intro',
+                                        $article->skip_intro
+                                        ?? false
+                                    )
+                                )
+                            >
+                            <span>
+                                Skip intro — go directly to Chapter 1
+                            </span>
+                        </label>
+
+                        <div
+                            class="muted"
+                            style="font-size:11px;margin-top:5px"
+                        >
+                            When enabled, visitors opening the main story URL are redirected to Chapter 1.
+                        </div>
+                    </div>
                 </div>
 
                 <div class="field alias-panel">
@@ -540,128 +744,6 @@
                     @endif
                 </div>
 
-                <div
-                    id="chapterManager"
-                    class="field chapter-manager"
-                    style="{{
-                        $contentMode === 'chapter'
-                            ? ''
-                            : 'display:none'
-                    }}"
-                >
-                    <label>
-                        Chapter Manager
-                        <span class="muted">
-                            — each chapter opens as a new public page
-                        </span>
-                    </label>
-
-                    @if($article->exists)
-
-                        <div
-                            class="muted"
-                            style="font-size:11px;margin-top:5px"
-                        >
-                            The main Article Body acts as the story introduction. Each chapter below has its own page, ads, view counter and Previous / Next buttons.
-                        </div>
-
-                        <div
-                            id="chapterListAdmin"
-                            class="chapter-list-admin"
-                        >
-                            @foreach($article->chapters as $chapter)
-                                <div
-                                    class="chapter-card"
-                                    data-chapter-id="{{ $chapter->id }}"
-                                >
-                                    <div class="chapter-card-head">
-                                        <div class="chapter-card-title">
-                                            Chapter
-                                            {{ $chapter->chapter_number }}
-                                            ·
-                                            {{ number_format($chapter->views) }}
-                                            views
-                                        </div>
-
-                                        <a
-                                            class="chapter-public-link"
-                                            href="{{
-                                                route(
-                                                    'articles.chapter',
-                                                    [
-                                                        'slug' =>
-                                                            $article->slug,
-                                                        'chapterNumber' =>
-                                                            $chapter->chapter_number,
-                                                    ]
-                                                )
-                                            }}"
-                                            target="_blank"
-                                            rel="noopener"
-                                        >
-                                            Open ↗
-                                        </a>
-                                    </div>
-
-                                    <input
-                                        class="chapter-title-input"
-                                        value="{{ $chapter->title }}"
-                                        placeholder="Chapter title (optional)"
-                                    >
-
-                                    <textarea
-                                        class="chapter-body-input"
-                                        placeholder="Chapter content"
-                                    >{{ $chapter->body }}</textarea>
-
-                                    <div class="chapter-card-actions">
-                                        <button
-                                            type="button"
-                                            class="alias-mini-btn save-chapter-btn"
-                                        >
-                                            Save chapter
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            class="alias-mini-btn danger delete-chapter-btn"
-                                        >
-                                            Delete
-                                        </button>
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-
-                        <div class="chapter-actions">
-                            <button
-                                type="button"
-                                id="addChapterBtn"
-                                class="btn secondary"
-                                style="width:auto"
-                            >
-                                + Add Chapter
-                            </button>
-                        </div>
-
-                        <div
-                            id="chapterStatus"
-                            class="chapter-status"
-                        >
-                            {{ $article->chapters->count() }}
-                            chapter(s)
-                        </div>
-
-                    @else
-                        <div
-                            class="muted"
-                            style="font-size:11px;margin-top:7px"
-                        >
-                            Save this article once, then Edit it to add Chapter 1, Chapter 2 and more.
-                        </div>
-                    @endif
-                </div>
-
                 <div class="field">
                     <label>Opening excerpt / deck</label>
 
@@ -695,7 +777,45 @@
 
                 <div class="field">
 
-                    <label>Article body</label>
+                    <div class="chapter-source-label">
+                        <label id="articleBodyLabel">
+                            Article body
+                        </label>
+
+                        <div
+                            id="chapterAnalyzeTools"
+                            class="chapter-analyze-tools"
+                            style="{{
+                                $contentMode === 'chapter'
+                                    ? ''
+                                    : 'display:none'
+                            }}"
+                        >
+                            <span
+                                class="muted"
+                                style="font-size:10px"
+                            >
+                                Chapters
+                            </span>
+
+                            <input
+                                type="number"
+                                id="chapterAiCount"
+                                value="4"
+                                min="2"
+                                max="8"
+                                title="Desired chapter count"
+                            >
+
+                            <button
+                                type="button"
+                                id="analyzeChaptersBtn"
+                                class="chapter-analyze-btn"
+                            >
+                                ✨ Analyze Chapters
+                            </button>
+                        </div>
+                    </div>
 
                     <div class="editorbar" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
                         <button type="button" data-cmd="undo" title="Undo">↶</button>
@@ -790,6 +910,169 @@
                         Nothing is saved until you click Save article.
                     </div>
 </div>
+
+                <div
+                    id="chapterManager"
+                    class="chapter-builder"
+                    style="{{
+                        $contentMode === 'chapter'
+                            ? ''
+                            : 'display:none'
+                    }}"
+                >
+                    <div class="chapter-builder-head">
+                        <div class="chapter-builder-title">
+                            Chapters
+                            (<span id="chapterCountLabel">{{ $article->exists ? $article->chapters->count() : 0 }}</span>)
+                        </div>
+
+                        <div class="chapter-builder-actions">
+                            <input
+                                type="number"
+                                id="chapterAddCount"
+                                value="1"
+                                min="1"
+                                max="10"
+                                title="Number of chapters to add"
+                            >
+
+                            <button
+                                type="button"
+                                id="addChapterBtn"
+                                class="btn secondary"
+                                style="width:auto"
+                            >
+                                + Add Chapter
+                            </button>
+                        </div>
+                    </div>
+
+                    <input
+                        type="hidden"
+                        id="chaptersJson"
+                        name="chapters_json"
+                        value=""
+                    >
+
+                    <div
+                        id="chapterListAdmin"
+                        class="chapter-list-admin"
+                    >
+                        @if(
+                            $article->exists
+                            && $article->chapters->count()
+                        )
+                            @foreach($article->chapters as $chapter)
+                                <div
+                                    class="chapter-editor-card"
+                                    data-chapter-id="{{ $chapter->id }}"
+                                >
+                                    <div class="chapter-editor-head">
+                                        <div class="chapter-number">
+                                            Chapter
+                                            <span class="chapter-number-value">
+                                                {{ $chapter->chapter_number }}
+                                            </span>
+                                            ·
+                                            {{ number_format($chapter->views) }}
+                                            views
+                                        </div>
+
+                                        <div class="chapter-head-actions">
+                                            <a
+                                                class="chapter-public-link"
+                                                href="{{
+                                                    route(
+                                                        'articles.chapter',
+                                                        [
+                                                            'slug' =>
+                                                                $article->slug,
+                                                            'chapterNumber' =>
+                                                                $chapter->chapter_number,
+                                                        ]
+                                                    )
+                                                }}"
+                                                target="_blank"
+                                                rel="noopener"
+                                            >
+                                                Open ↗
+                                            </a>
+
+                                            <button
+                                                type="button"
+                                                class="move-chapter-up"
+                                            >
+                                                ↑
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                class="move-chapter-down"
+                                            >
+                                                ↓
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                class="danger remove-chapter-btn"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="chapter-editor-body">
+                                        <input
+                                            class="chapter-title-input chapter-title-field"
+                                            value="{{ $chapter->title }}"
+                                            placeholder="Chapter title"
+                                        >
+
+                                        <div class="chapter-mini-toolbar">
+                                            <button type="button" data-chapter-cmd="bold"><b>B</b></button>
+                                            <button type="button" data-chapter-cmd="italic"><i>I</i></button>
+                                            <button type="button" data-chapter-cmd="underline"><u>U</u></button>
+                                            <button type="button" data-chapter-cmd="formatBlock" data-chapter-val="h2">H2</button>
+                                            <button type="button" data-chapter-cmd="formatBlock" data-chapter-val="h3">H3</button>
+                                            <button type="button" data-chapter-cmd="formatBlock" data-chapter-val="p">P</button>
+                                            <button type="button" data-chapter-cmd="insertUnorderedList">• List</button>
+                                            <button type="button" data-chapter-cmd="insertOrderedList">1. List</button>
+                                            <button type="button" data-chapter-cmd="formatBlock" data-chapter-val="blockquote">Quote</button>
+                                            <button type="button" data-chapter-link>Link</button>
+                                        </div>
+
+                                        <div
+                                            class="chapter-rich-editor"
+                                            contenteditable="true"
+                                        >{!! $chapter->body !!}</div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        @endif
+                    </div>
+
+                    <div
+                        id="chapterEmpty"
+                        class="chapter-empty"
+                        style="{{
+                            $article->exists
+                            && $article->chapters->count()
+                                ? 'display:none'
+                                : ''
+                        }}"
+                    >
+                        No chapters yet. Click “Add Chapter” or use “Analyze Chapters”.
+                    </div>
+
+                    <div class="chapter-builder-note">
+                        Each chapter becomes a separate public page with its own URL, Previous / Next navigation, view counter and ad slots. Chapters are saved together when you click Save article.
+                    </div>
+
+                    <div
+                        id="chapterStatus"
+                        class="chapter-status"
+                    ></div>
+                </div>
 
             </div>
 
@@ -1467,6 +1750,13 @@ youtubeBtn.addEventListener('click', function () {
 /* Form submit */
 articleForm.addEventListener('submit', function () {
     syncEditor();
+
+    if (
+        typeof syncChaptersJson
+        === 'function'
+    ) {
+        syncChaptersJson();
+    }
 });
 
 syncEditor();
@@ -2117,7 +2407,7 @@ updateEditorialCounters();
 
 
 /* =========================
-   CONTENT MODE / ALIASES / CHAPTERS
+   CONTENT MODE / ALIASES / CHAPTER BUILDER
 ========================= */
 const contentModeInputs =
     document.querySelectorAll(
@@ -2129,17 +2419,50 @@ const chapterManager =
         'chapterManager'
     );
 
+const chapterModeOptions =
+    document.getElementById(
+        'chapterModeOptions'
+    );
+
+const chapterAnalyzeTools =
+    document.getElementById(
+        'chapterAnalyzeTools'
+    );
+
+const articleBodyLabel =
+    document.getElementById(
+        'articleBodyLabel'
+    );
+
 function refreshContentModeUi() {
     const selected =
         document.querySelector(
             'input[name="content_mode"]:checked'
         );
 
+    const isChapter =
+        selected?.value === 'chapter';
+
     if (chapterManager) {
         chapterManager.style.display =
-            selected?.value === 'chapter'
-                ? ''
-                : 'none';
+            isChapter ? '' : 'none';
+    }
+
+    if (chapterModeOptions) {
+        chapterModeOptions.style.display =
+            isChapter ? '' : 'none';
+    }
+
+    if (chapterAnalyzeTools) {
+        chapterAnalyzeTools.style.display =
+            isChapter ? '' : 'none';
+    }
+
+    if (articleBodyLabel) {
+        articleBodyLabel.textContent =
+            isChapter
+                ? 'INTRO / DESCRIPTION'
+                : 'Article body';
     }
 }
 
@@ -2154,6 +2477,10 @@ contentModeInputs.forEach(
 
 refreshContentModeUi();
 
+
+/* =========================
+   ALTERNATE SLUGS
+========================= */
 @if($article->exists)
 
 const aliasList =
@@ -2202,55 +2529,6 @@ const aliasDestroyTemplate =
         )
     ) !!};
 
-const chapterListAdmin =
-    document.getElementById(
-        'chapterListAdmin'
-    );
-
-const chapterStatus =
-    document.getElementById(
-        'chapterStatus'
-    );
-
-const addChapterBtn =
-    document.getElementById(
-        'addChapterBtn'
-    );
-
-const chapterStoreUrl =
-    {!! json_encode(
-        route(
-            'admin.articles.chapters.store',
-            $article
-        )
-    ) !!};
-
-const chapterUpdateTemplate =
-    {!! json_encode(
-        url(
-            '/admin/articles/'
-            . $article->id
-            . '/chapters/__CHAPTER__'
-        )
-    ) !!};
-
-const chapterDestroyTemplate =
-    {!! json_encode(
-        url(
-            '/admin/articles/'
-            . $article->id
-            . '/chapters/__CHAPTER__'
-        )
-    ) !!};
-
-const chapterPublicBase =
-    {!! json_encode(
-        route(
-            'articles.show',
-            $article->slug
-        )
-    ) !!};
-
 async function uiCopyText(text) {
     if (
         navigator.clipboard &&
@@ -2268,11 +2546,8 @@ async function uiCopyText(text) {
         );
 
     textarea.value = text;
-    textarea.style.position =
-        'fixed';
-
-    textarea.style.opacity =
-        '0';
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
 
     document.body.appendChild(
         textarea
@@ -2325,16 +2600,8 @@ async function adminJsonRequest(
     }
 
     if (!response.ok) {
-        const firstError =
-            data.errors
-                ? Object.values(
-                    data.errors
-                )[0]?.[0]
-                : null;
-
         throw new Error(
-            firstError
-            || data.message
+            data.message
             || 'Request failed.'
         );
     }
@@ -2346,6 +2613,10 @@ function setAliasStatus(
     message,
     isError = false
 ) {
+    if (!aliasStatus) {
+        return;
+    }
+
     aliasStatus.textContent =
         message;
 
@@ -2356,6 +2627,10 @@ function setAliasStatus(
 }
 
 function renderAliases(aliases) {
+    if (!aliasList) {
+        return;
+    }
+
     aliasList.innerHTML = '';
 
     aliases.forEach(
@@ -2424,19 +2699,19 @@ generateAliasesBtn?.addEventListener(
                 await adminJsonRequest(
                     aliasGenerateUrl,
                     'POST',
-                    {
-                        count: count
-                    }
+                    { count: count }
                 );
 
             renderAliases(
                 data.aliases || []
             );
+
         } catch (error) {
             setAliasStatus(
                 error.message,
                 true
             );
+
         } finally {
             this.disabled = false;
             this.textContent =
@@ -2468,6 +2743,7 @@ addAliasBtn?.addEventListener(
             renderAliases(
                 data.aliases || []
             );
+
         } catch (error) {
             setAliasStatus(
                 error.message,
@@ -2494,22 +2770,15 @@ aliasList?.addEventListener(
                 '.copy-alias-btn'
             )
         ) {
-            try {
-                await uiCopyText(
-                    window.location.origin
-                    + '/story/'
-                    + row.dataset.slug
-                );
+            await uiCopyText(
+                window.location.origin
+                + '/story/'
+                + row.dataset.slug
+            );
 
-                setAliasStatus(
-                    'Alternate URL copied.'
-                );
-            } catch (error) {
-                setAliasStatus(
-                    'Could not copy URL.',
-                    true
-                );
-            }
+            setAliasStatus(
+                'Alternate URL copied.'
+            );
 
             return;
         }
@@ -2541,6 +2810,7 @@ aliasList?.addEventListener(
                 renderAliases(
                     data.aliases || []
                 );
+
             } catch (error) {
                 setAliasStatus(
                     error.message,
@@ -2551,12 +2821,67 @@ aliasList?.addEventListener(
     }
 );
 
+@endif
+
+
+/* =========================
+   INLINE CHAPTER BUILDER
+========================= */
+const chapterListAdmin =
+    document.getElementById(
+        'chapterListAdmin'
+    );
+
+const chapterEmpty =
+    document.getElementById(
+        'chapterEmpty'
+    );
+
+const chapterCountLabel =
+    document.getElementById(
+        'chapterCountLabel'
+    );
+
+const chapterAddCount =
+    document.getElementById(
+        'chapterAddCount'
+    );
+
+const addChapterBtn =
+    document.getElementById(
+        'addChapterBtn'
+    );
+
+const chaptersJson =
+    document.getElementById(
+        'chaptersJson'
+    );
+
+const chapterStatus =
+    document.getElementById(
+        'chapterStatus'
+    );
+
+const analyzeChaptersBtn =
+    document.getElementById(
+        'analyzeChaptersBtn'
+    );
+
+const chapterAiCount =
+    document.getElementById(
+        'chapterAiCount'
+    );
+
 function setChapterStatus(
     message,
     isError = false
 ) {
+    if (!chapterStatus) {
+        return;
+    }
+
     chapterStatus.textContent =
-        message;
+        message || '';
 
     chapterStatus.style.color =
         isError
@@ -2564,123 +2889,479 @@ function setChapterStatus(
             : '#64748b';
 }
 
-function chapterUrl(
-    chapterNumber
-) {
-    return chapterPublicBase
-        + '/chapter/'
-        + chapterNumber;
+function chapterCards() {
+    return Array.from(
+        chapterListAdmin
+            ?.querySelectorAll(
+                '.chapter-editor-card'
+            )
+        || []
+    );
 }
 
-function renderChapters(chapters) {
-    chapterListAdmin.innerHTML = '';
+function updateChapterNumbers() {
+    const cards =
+        chapterCards();
 
-    chapters.forEach(
-        function (chapter) {
-            const card =
-                document.createElement(
-                    'div'
-                );
+    cards.forEach(
+        function (card, index) {
+            const number =
+                index + 1;
 
-            card.className =
-                'chapter-card';
-
-            card.dataset.chapterId =
-                chapter.id;
-
-            card.innerHTML =
-                '<div class="chapter-card-head">'
-                + '<div class="chapter-card-title"></div>'
-                + '<a class="chapter-public-link" target="_blank" rel="noopener">Open ↗</a>'
-                + '</div>'
-                + '<input class="chapter-title-input" placeholder="Chapter title (optional)">'
-                + '<textarea class="chapter-body-input" placeholder="Chapter content"></textarea>'
-                + '<div class="chapter-card-actions">'
-                + '<button type="button" class="alias-mini-btn save-chapter-btn">Save chapter</button>'
-                + '<button type="button" class="alias-mini-btn danger delete-chapter-btn">Delete</button>'
-                + '</div>';
-
-            card.querySelector(
-                '.chapter-card-title'
-            ).textContent =
-                'Chapter '
-                + chapter.chapter_number
-                + ' · '
-                + chapter.views
-                + ' views';
-
-            const openLink =
+            const numberEl =
                 card.querySelector(
-                    '.chapter-public-link'
+                    '.chapter-number-value'
                 );
 
-            openLink.href =
-                chapter.url
-                || chapterUrl(
-                    chapter.chapter_number
-                );
-
-            card.querySelector(
-                '.chapter-title-input'
-            ).value =
-                chapter.title || '';
-
-            card.querySelector(
-                '.chapter-body-input'
-            ).value =
-                chapter.body || '';
-
-            chapterListAdmin.appendChild(
-                card
-            );
+            if (numberEl) {
+                numberEl.textContent =
+                    number;
+            }
         }
     );
 
-    setChapterStatus(
-        chapters.length
-        + ' chapter(s)'
+    if (chapterCountLabel) {
+        chapterCountLabel.textContent =
+            cards.length;
+    }
+
+    if (chapterEmpty) {
+        chapterEmpty.style.display =
+            cards.length
+                ? 'none'
+                : '';
+    }
+}
+
+function collectChapters() {
+    return chapterCards()
+        .map(
+            function (card) {
+                return {
+                    id:
+                        card.dataset.chapterId
+                        ? parseInt(
+                            card.dataset.chapterId,
+                            10
+                        )
+                        : null,
+                    title:
+                        (
+                            card.querySelector(
+                                '.chapter-title-input'
+                            )?.value
+                            || ''
+                        ).trim(),
+                    body:
+                        (
+                            card.querySelector(
+                                '.chapter-rich-editor'
+                            )?.innerHTML
+                            || ''
+                        ).trim()
+                };
+            }
+        )
+        .filter(
+            function (chapter) {
+                return (
+                    chapter.title !== ''
+                    || chapter.body
+                        .replace(
+                            /<[^>]+>/g,
+                            ''
+                        )
+                        .trim() !== ''
+                );
+            }
+        );
+}
+
+function syncChaptersJson() {
+    if (!chaptersJson) {
+        return;
+    }
+
+    chaptersJson.value =
+        JSON.stringify(
+            collectChapters()
+        );
+}
+
+function createChapterCard(
+    chapter = {}
+) {
+    const card =
+        document.createElement(
+            'div'
+        );
+
+    card.className =
+        'chapter-editor-card';
+
+    if (chapter.id) {
+        card.dataset.chapterId =
+            chapter.id;
+    }
+
+    card.innerHTML =
+        '<div class="chapter-editor-head">'
+        + '<div class="chapter-number">Chapter <span class="chapter-number-value"></span></div>'
+        + '<div class="chapter-head-actions">'
+        + '<button type="button" class="move-chapter-up">↑</button>'
+        + '<button type="button" class="move-chapter-down">↓</button>'
+        + '<button type="button" class="danger remove-chapter-btn">Delete</button>'
+        + '</div>'
+        + '</div>'
+        + '<div class="chapter-editor-body">'
+        + '<input class="chapter-title-input chapter-title-field" placeholder="Chapter title">'
+        + '<div class="chapter-mini-toolbar">'
+        + '<button type="button" data-chapter-cmd="bold"><b>B</b></button>'
+        + '<button type="button" data-chapter-cmd="italic"><i>I</i></button>'
+        + '<button type="button" data-chapter-cmd="underline"><u>U</u></button>'
+        + '<button type="button" data-chapter-cmd="formatBlock" data-chapter-val="h2">H2</button>'
+        + '<button type="button" data-chapter-cmd="formatBlock" data-chapter-val="h3">H3</button>'
+        + '<button type="button" data-chapter-cmd="formatBlock" data-chapter-val="p">P</button>'
+        + '<button type="button" data-chapter-cmd="insertUnorderedList">• List</button>'
+        + '<button type="button" data-chapter-cmd="insertOrderedList">1. List</button>'
+        + '<button type="button" data-chapter-cmd="formatBlock" data-chapter-val="blockquote">Quote</button>'
+        + '<button type="button" data-chapter-link>Link</button>'
+        + '</div>'
+        + '<div class="chapter-rich-editor" contenteditable="true"></div>'
+        + '</div>';
+
+    card.querySelector(
+        '.chapter-title-input'
+    ).value =
+        chapter.title || '';
+
+    card.querySelector(
+        '.chapter-rich-editor'
+    ).innerHTML =
+        chapter.body
+        || '<p><br></p>';
+
+    chapterListAdmin.appendChild(
+        card
     );
+
+    updateChapterNumbers();
 }
 
 addChapterBtn?.addEventListener(
     'click',
-    async function () {
-        const title =
-            prompt(
-                'Chapter title (optional). Click OK to continue.'
+    function () {
+        const count =
+            Math.max(
+                1,
+                Math.min(
+                    10,
+                    parseInt(
+                        chapterAddCount.value,
+                        10
+                    ) || 1
+                )
             );
 
-        if (title === null) {
-            return;
-        }
-
-        const body =
-            prompt(
-                'Paste the new chapter content. Minimum 40 characters.'
-            );
-
-        if (!body) {
-            return;
+        for (
+            let i = 0;
+            i < count;
+            i++
+        ) {
+            createChapterCard();
         }
 
         setChapterStatus(
-            'Creating chapter…'
+            count
+            + ' chapter(s) added. Save the article when ready.'
+        );
+    }
+);
+
+chapterListAdmin?.addEventListener(
+    'click',
+    function (event) {
+        const card =
+            event.target.closest(
+                '.chapter-editor-card'
+            );
+
+        if (!card) {
+            return;
+        }
+
+        if (
+            event.target.closest(
+                '.remove-chapter-btn'
+            )
+        ) {
+            if (
+                confirm(
+                    'Remove this chapter? It will be deleted when you save the article.'
+                )
+            ) {
+                card.remove();
+                updateChapterNumbers();
+                syncChaptersJson();
+            }
+
+            return;
+        }
+
+        if (
+            event.target.closest(
+                '.move-chapter-up'
+            )
+        ) {
+            const previous =
+                card.previousElementSibling;
+
+            if (previous) {
+                chapterListAdmin.insertBefore(
+                    card,
+                    previous
+                );
+
+                updateChapterNumbers();
+            }
+
+            return;
+        }
+
+        if (
+            event.target.closest(
+                '.move-chapter-down'
+            )
+        ) {
+            const next =
+                card.nextElementSibling;
+
+            if (next) {
+                chapterListAdmin.insertBefore(
+                    next,
+                    card
+                );
+
+                updateChapterNumbers();
+            }
+
+            return;
+        }
+
+        const linkButton =
+            event.target.closest(
+                '[data-chapter-link]'
+            );
+
+        if (linkButton) {
+            const editor =
+                card.querySelector(
+                    '.chapter-rich-editor'
+                );
+
+            editor.focus();
+
+            const url =
+                prompt(
+                    'Paste link URL'
+                );
+
+            if (url) {
+                document.execCommand(
+                    'createLink',
+                    false,
+                    url
+                );
+            }
+
+            return;
+        }
+
+        const toolbarButton =
+            event.target.closest(
+                '[data-chapter-cmd]'
+            );
+
+        if (toolbarButton) {
+            const editor =
+                card.querySelector(
+                    '.chapter-rich-editor'
+                );
+
+            editor.focus();
+
+            document.execCommand(
+                toolbarButton.dataset
+                    .chapterCmd,
+                false,
+                toolbarButton.dataset
+                    .chapterVal
+                || null
+            );
+        }
+    }
+);
+
+updateChapterNumbers();
+syncChaptersJson();
+
+
+/* =========================
+   AI ANALYZE CHAPTERS
+========================= */
+analyzeChaptersBtn?.addEventListener(
+    'click',
+    async function () {
+        const titleField =
+            articleForm.elements
+                .namedItem('title');
+
+        const title =
+            (
+                titleField?.value
+                || ''
+            ).trim();
+
+        const sourceText =
+            (
+                ed.innerText
+                || ''
+            ).trim();
+
+        if (!title) {
+            alert(
+                'Please enter the article title first.'
+            );
+
+            titleField?.focus();
+
+            return;
+        }
+
+        if (
+            sourceText.length < 350
+        ) {
+            alert(
+                'Add a fuller source article before analyzing chapters.'
+            );
+
+            ed.focus();
+
+            return;
+        }
+
+        if (
+            chapterCards().length
+            && !confirm(
+                'AI analysis will replace the current chapter list. Continue?'
+            )
+        ) {
+            return;
+        }
+
+        const count =
+            Math.max(
+                2,
+                Math.min(
+                    8,
+                    parseInt(
+                        chapterAiCount.value,
+                        10
+                    ) || 4
+                )
+            );
+
+        const oldLabel =
+            this.textContent;
+
+        this.disabled = true;
+        this.textContent =
+            'Analyzing…';
+
+        setChapterStatus(
+            'AI is structuring the article into chapters…'
         );
 
         try {
-            const data =
-                await adminJsonRequest(
-                    chapterStoreUrl,
-                    'POST',
+            const response =
+                await fetch(
+                    @json(
+                        route(
+                            'admin.articles.ai-generate'
+                        )
+                    ),
                     {
-                        title: title,
-                        body: body
+                        method: 'POST',
+                        headers: {
+                            'Content-Type':
+                                'application/json',
+                            'Accept':
+                                'application/json',
+                            'X-CSRF-TOKEN':
+                                @json(
+                                    csrf_token()
+                                )
+                        },
+                        body:
+                            JSON.stringify({
+                                mode:
+                                    'chapters',
+                                title:
+                                    title,
+                                body:
+                                    ed.innerHTML,
+                                chapter_count:
+                                    count
+                            })
                     }
                 );
 
-            renderChapters(
-                data.chapters || []
+            let data = {};
+
+            try {
+                data =
+                    await response.json();
+            } catch (e) {
+                data = {};
+            }
+
+            if (!response.ok) {
+                throw new Error(
+                    data.message
+                    || 'AI chapter analysis failed.'
+                );
+            }
+
+            if (
+                !Array.isArray(
+                    data.chapters
+                )
+                || !data.chapters.length
+            ) {
+                throw new Error(
+                    'AI returned no chapters.'
+                );
+            }
+
+            if (data.intro_html) {
+                ed.innerHTML =
+                    data.intro_html;
+
+                syncEditor();
+            }
+
+            chapterListAdmin.innerHTML =
+                '';
+
+            data.chapters.forEach(
+                function (chapter) {
+                    createChapterCard(
+                        chapter
+                    );
+                }
             );
+
+            syncChaptersJson();
 
             const chapterMode =
                 document.querySelector(
@@ -2691,119 +3372,28 @@ addChapterBtn?.addEventListener(
                 chapterMode.checked = true;
                 refreshContentModeUi();
             }
-        } catch (error) {
+
             setChapterStatus(
-                error.message,
+                data.chapters.length
+                + ' AI chapter(s) created. Review them before saving.'
+            );
+
+        } catch (error) {
+            console.error(error);
+
+            setChapterStatus(
+                error.message
+                || 'AI chapter analysis failed.',
                 true
             );
+
+        } finally {
+            this.disabled = false;
+            this.textContent =
+                oldLabel;
         }
     }
 );
-
-chapterListAdmin?.addEventListener(
-    'click',
-    async function (event) {
-        const card =
-            event.target.closest(
-                '.chapter-card'
-            );
-
-        if (!card) {
-            return;
-        }
-
-        const chapterId =
-            card.dataset.chapterId;
-
-        if (
-            event.target.closest(
-                '.save-chapter-btn'
-            )
-        ) {
-            const title =
-                card.querySelector(
-                    '.chapter-title-input'
-                ).value;
-
-            const body =
-                card.querySelector(
-                    '.chapter-body-input'
-                ).value;
-
-            setChapterStatus(
-                'Saving chapter…'
-            );
-
-            try {
-                const data =
-                    await adminJsonRequest(
-                        chapterUpdateTemplate
-                            .replace(
-                                '__CHAPTER__',
-                                chapterId
-                            ),
-                        'PUT',
-                        {
-                            title: title,
-                            body: body
-                        }
-                    );
-
-                renderChapters(
-                    data.chapters || []
-                );
-            } catch (error) {
-                setChapterStatus(
-                    error.message,
-                    true
-                );
-            }
-
-            return;
-        }
-
-        if (
-            event.target.closest(
-                '.delete-chapter-btn'
-            )
-        ) {
-            if (
-                !confirm(
-                    'Delete this chapter page?'
-                )
-            ) {
-                return;
-            }
-
-            setChapterStatus(
-                'Deleting chapter…'
-            );
-
-            try {
-                const data =
-                    await adminJsonRequest(
-                        chapterDestroyTemplate
-                            .replace(
-                                '__CHAPTER__',
-                                chapterId
-                            ),
-                        'DELETE'
-                    );
-
-                renderChapters(
-                    data.chapters || []
-                );
-            } catch (error) {
-                setChapterStatus(
-                    error.message,
-                    true
-                );
-            }
-        }
-    }
-);
-
-@endif
 
 /* =========================
    LIVE SEARCH PREVIEW
