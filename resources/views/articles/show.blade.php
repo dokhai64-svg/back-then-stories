@@ -108,6 +108,37 @@
     line-height: 1.45;
 }
 
+.chapter-entry{
+    margin:34px 0 8px;
+    padding:22px;
+    border:1px solid #dedede;
+    border-radius:12px;
+    background:#fafafa;
+}
+.chapter-entry h2{
+    margin:0 0 10px;
+    font-size:24px;
+}
+.chapter-start{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-height:42px;
+    padding:0 18px;
+    border-radius:8px;
+    background:#8b3326;
+    color:#fff !important;
+    text-decoration:none !important;
+    font-weight:700;
+}
+.chapter-list{
+    margin:16px 0 0;
+    padding-left:22px;
+}
+.chapter-list li{
+    margin:7px 0;
+}
+
 @media (max-width: 900px) {
     .article-recommendations__grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -161,6 +192,74 @@
     <div class="body">
         {!! $article->body !!}
     </div>
+
+    @if(
+        $article->content_mode === 'chapter'
+        && $article->chapters->count()
+    )
+        @php
+            $firstChapter =
+                $article->chapters->first();
+        @endphp
+
+        <section class="chapter-entry">
+            <h2>
+                Continue this story
+            </h2>
+
+            <p>
+                This story has
+                {{ $article->chapters->count() }}
+                chapter(s).
+            </p>
+
+            <a
+                class="chapter-start"
+                href="{{
+                    route(
+                        'articles.chapter',
+                        [
+                            'slug' =>
+                                $article->slug,
+                            'chapterNumber' =>
+                                $firstChapter->chapter_number,
+                        ]
+                    )
+                }}"
+            >
+                Start Chapter
+                {{ $firstChapter->chapter_number }}
+                →
+            </a>
+
+            <ol class="chapter-list">
+                @foreach($article->chapters as $chapter)
+                    <li>
+                        <a
+                            href="{{
+                                route(
+                                    'articles.chapter',
+                                    [
+                                        'slug' =>
+                                            $article->slug,
+                                        'chapterNumber' =>
+                                            $chapter->chapter_number,
+                                    ]
+                                )
+                            }}"
+                        >
+                            Chapter
+                            {{ $chapter->chapter_number }}
+                            @if($chapter->title)
+                                —
+                                {{ $chapter->title }}
+                            @endif
+                        </a>
+                    </li>
+                @endforeach
+            </ol>
+        </section>
+    @endif
 
     @include('partials.ad', ['key' => 'banner_mid'])
 
