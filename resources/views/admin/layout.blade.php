@@ -107,6 +107,7 @@
         'Preview': 'Xem nhanh',
         'Quick article preview': 'Xem nhanh bài viết',
         'Edit article': 'Chỉnh sửa bài viết',
+        'Clone article': 'Nhân bản bài viết',
         'Open page ↗': 'Mở trang ↗',
         'Copy primary URL': 'Sao chép URL chính',
         'Copy all URLs': 'Sao chép tất cả URL',
@@ -681,7 +682,9 @@
                     'Remove this chapter? It will be deleted when you save the article.':
                         'Xóa chương này? Chương sẽ bị xóa khi bạn lưu bài viết.',
                     'AI analysis will replace the current chapter list. Continue?':
-                        'Phân tích AI sẽ thay thế danh sách chương hiện tại. Tiếp tục?'
+                        'Phân tích AI sẽ thay thế danh sách chương hiện tại. Tiếp tục?',
+                    'Clone this article as a new draft?':
+                        'Nhân bản bài viết này thành một bản nháp mới?'
                 };
 
                 return nativeConfirm(
