@@ -288,6 +288,26 @@ Route::prefix('admin')
                     ]
                 )->name('media.index');
 
+                Route::get(
+                    'media/library',
+                    [
+                        AdminMedia::class,
+                        'library',
+                    ]
+                )->name(
+                    'media.library'
+                );
+
+                Route::post(
+                    'media/inline',
+                    [
+                        AdminMedia::class,
+                        'inlineStore',
+                    ]
+                )->name(
+                    'media.inline-store'
+                );
+
                 Route::post(
                     'media',
                     [
@@ -295,6 +315,16 @@ Route::prefix('admin')
                         'store',
                     ]
                 )->name('media.store');
+
+                Route::patch(
+                    'media/{medium}/alt',
+                    [
+                        AdminMedia::class,
+                        'updateAlt',
+                    ]
+                )->name(
+                    'media.alt'
+                );
 
                 Route::delete(
                     'media/{medium}',
