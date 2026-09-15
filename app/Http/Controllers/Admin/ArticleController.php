@@ -202,12 +202,12 @@ class ArticleController extends Controller
 
         $this->normalizePublish($data);
 
-        $article = Article::create($data);
+        Article::create($data);
 
         return redirect()
             ->route(
-                'admin.articles.edit',
-                $article
+                'admin.articles.index',
+                ['scope' => 'active']
             )
             ->with(
                 'ok',
@@ -285,16 +285,17 @@ class ArticleController extends Controller
 
         $article->update($data);
 
-        return back()->with(
-            'ok',
-            'Article saved.'
-        );
+        return redirect()
+            ->route(
+                'admin.articles.index',
+                ['scope' => 'active']
+            )
+            ->with(
+                'ok',
+                'Article saved.'
+            );
     }
 
-    /**
-     * Move an article to trash.
-     * Keep its image so restoring the article is safe.
-     */
     public function destroy(Article $article)
     {
         $article->delete();
@@ -328,10 +329,6 @@ class ArticleController extends Controller
             );
     }
 
-    /**
-     * Permanent deletion is available only from Trash.
-     * The featured image is deleted only here.
-     */
     public function forceDelete(int $articleId)
     {
         $article = Article::onlyTrashed()
