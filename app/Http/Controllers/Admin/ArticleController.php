@@ -48,6 +48,9 @@ class ArticleController extends Controller
                 'author',
                 'aliases',
             ])
+            ->withCount(
+                'chapters'
+            )
             ->when(
                 $request->filled('q'),
                 function ($q) use ($request) {
