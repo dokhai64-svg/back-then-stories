@@ -432,6 +432,122 @@
     line-height:1.45;
 }
 
+
+.media-picker-overlay{
+    position:fixed;
+    inset:0;
+    z-index:9999;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    padding:22px;
+    background:rgba(15,23,42,.58);
+}
+.media-picker-overlay.open{
+    display:flex;
+}
+.media-picker-dialog{
+    width:min(1040px,96vw);
+    max-height:88vh;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    background:#fff;
+    border-radius:14px;
+    box-shadow:0 24px 70px rgba(0,0,0,.28);
+}
+.media-picker-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    padding:14px 16px;
+    border-bottom:1px solid #e5e7eb;
+}
+.media-picker-head h3{
+    margin:0;
+    font-size:17px;
+}
+.media-picker-close{
+    border:1px solid #d1d5db;
+    background:#fff;
+    border-radius:7px;
+    width:34px;
+    height:34px;
+    cursor:pointer;
+}
+.media-picker-tools{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    padding:12px 16px;
+    border-bottom:1px solid #eef2f7;
+}
+.media-picker-tools input[type="search"]{
+    flex:1 1 280px;
+    min-height:38px;
+    padding:8px 10px;
+    border:1px solid #cfd4dc;
+    border-radius:8px;
+}
+.media-picker-grid{
+    display:grid;
+    grid-template-columns:repeat(6,minmax(0,1fr));
+    gap:10px;
+    padding:14px 16px;
+    overflow:auto;
+}
+.media-picker-item{
+    padding:0;
+    border:1px solid #e5e7eb;
+    border-radius:9px;
+    background:#fff;
+    overflow:hidden;
+    cursor:pointer;
+    text-align:left;
+}
+.media-picker-item:hover{
+    border-color:#7a2f22;
+    box-shadow:0 0 0 2px rgba(122,47,34,.08);
+}
+.media-picker-item img{
+    display:block;
+    width:100%;
+    aspect-ratio:1;
+    object-fit:cover;
+    background:#f3f4f6;
+}
+.media-picker-caption{
+    padding:7px 8px;
+    font-size:10px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+.media-picker-empty{
+    grid-column:1/-1;
+    padding:36px 12px;
+    text-align:center;
+    color:#64748b;
+}
+.media-picker-foot{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    padding:10px 16px;
+    border-top:1px solid #e5e7eb;
+}
+.media-picker-status{
+    font-size:11px;
+    color:#64748b;
+}
+@media(max-width:900px){
+    .media-picker-grid{
+        grid-template-columns:repeat(3,minmax(0,1fr));
+    }
+}
+
 </style>
 
 <form
@@ -841,6 +957,7 @@
 
                         <button type="button" id="youtubeBtn" title="Insert YouTube video">YouTube</button>
                         <button type="button" id="chooseEditorImageBtn" title="Choose image from computer">Choose Image</button>
+                        <button type="button" id="openMediaLibraryBtn" title="Choose an existing image from Media Library">Media Library</button>
                         <button type="button" id="imgBtn" title="Insert image by URL">Image URL</button>
                     </div>
 
@@ -1048,6 +1165,7 @@
                                             <button type="button" data-chapter-link>Link</button>
                                             <button type="button" data-chapter-youtube>YouTube</button>
                                             <button type="button" data-chapter-image>Choose Image</button>
+                                            <button type="button" data-chapter-media-library>Media Library</button>
                                             <button type="button" data-chapter-image-url>Image URL</button>
                                         </div>
 
@@ -1417,6 +1535,87 @@
 @endsection
 
 
+
+<div
+    id="mediaPickerOverlay"
+    class="media-picker-overlay"
+    aria-hidden="true"
+>
+    <div
+        class="media-picker-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mediaPickerTitle"
+    >
+        <div class="media-picker-head">
+            <h3 id="mediaPickerTitle">
+                Media Library
+            </h3>
+
+            <button
+                type="button"
+                id="mediaPickerClose"
+                class="media-picker-close"
+                aria-label="Close"
+            >
+                ×
+            </button>
+        </div>
+
+        <div class="media-picker-tools">
+            <input
+                type="search"
+                id="mediaPickerSearch"
+                placeholder="Search filename or alt text..."
+            >
+
+            <button
+                type="button"
+                id="mediaPickerSearchBtn"
+                class="btn secondary"
+            >
+                Search
+            </button>
+
+            <button
+                type="button"
+                id="mediaPickerUploadBtn"
+                class="btn"
+            >
+                Upload new image
+            </button>
+
+            <input
+                type="file"
+                id="mediaPickerUploadInput"
+                accept="image/*"
+                style="display:none"
+            >
+        </div>
+
+        <div
+            id="mediaPickerGrid"
+            class="media-picker-grid"
+        ></div>
+
+        <div class="media-picker-foot">
+            <div
+                id="mediaPickerStatus"
+                class="media-picker-status"
+            ></div>
+
+            <button
+                type="button"
+                id="mediaPickerLoadMore"
+                class="btn secondary"
+                style="display:none"
+            >
+                Load more
+            </button>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 
 <script>
@@ -1624,72 +1823,164 @@ chooseEditorImageBtn.addEventListener('click', function () {
     editorImageInput.click();
 });
 
-function compressEditorImage(file, maxWidth = 1400, quality = 0.82) {
-    return new Promise(function (resolve, reject) {
-        const reader = new FileReader();
-
-        reader.onload = function () {
-            const image = new Image();
-
-            image.onload = function () {
-                const scale = Math.min(1, maxWidth / image.width);
-
-                const canvas = document.createElement('canvas');
-                canvas.width = Math.round(image.width * scale);
-                canvas.height = Math.round(image.height * scale);
-
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-                resolve(
-                    canvas.toDataURL('image/jpeg', quality)
-                );
-            };
-
-            image.onerror = reject;
-            image.src = reader.result;
-        };
-
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
-}
-
-editorImageInput.addEventListener('change', async function () {
-    const file = this.files && this.files[0];
-
+async function uploadImageToMediaLibrary(file) {
     if (!file) {
-        return;
+        throw new Error(
+            'No image selected.'
+        );
     }
 
-    if (!file.type.startsWith('image/')) {
-        alert('Please select an image file.');
-        return;
+    if (
+        !file.type.startsWith(
+            'image/'
+        )
+    ) {
+        throw new Error(
+            'Please select an image file.'
+        );
     }
 
-    if (file.size > 8 * 1024 * 1024) {
-        alert('Please choose an image smaller than 8 MB.');
-        return;
+    if (
+        file.size
+        > 8 * 1024 * 1024
+    ) {
+        throw new Error(
+            'Please choose an image smaller than 8 MB.'
+        );
     }
 
-    try {
-        const dataUrl = await compressEditorImage(file);
+    const formData =
+        new FormData();
 
-        restoreSelection();
+    formData.append(
+        'file',
+        file
+    );
 
-        document.execCommand(
-            'insertHTML',
-            false,
-            '<p><img src="' + dataUrl + '" alt="" style="max-width:100%;height:auto;display:block;margin:20px auto;border-radius:8px"></p><p><br></p>'
+    const response =
+        await fetch(
+            @json(
+                route(
+                    'admin.media.inline-store'
+                )
+            ),
+            {
+                method: 'POST',
+                headers: {
+                    'Accept':
+                        'application/json',
+                    'X-CSRF-TOKEN':
+                        @json(
+                            csrf_token()
+                        )
+                },
+                body:
+                    formData
+            }
         );
 
-        saveSelection();
-        syncEditor();
+    let data = {};
 
-    } catch (error) {
-        alert('Could not insert this image.');
+    try {
+        data =
+            await response.json();
+    } catch (e) {
+        data = {};
     }
-});
+
+    if (!response.ok) {
+        throw new Error(
+            data.message
+            || 'Image upload failed.'
+        );
+    }
+
+    if (!data.item?.url) {
+        throw new Error(
+            'The uploaded image URL was not returned.'
+        );
+    }
+
+    return data.item;
+}
+
+editorImageInput.addEventListener(
+    'change',
+    async function () {
+        const file =
+            this.files
+            && this.files[0];
+
+        if (!file) {
+            return;
+        }
+
+        const oldText =
+            chooseEditorImageBtn
+                .textContent;
+
+        chooseEditorImageBtn.disabled =
+            true;
+
+        chooseEditorImageBtn.textContent =
+            'Uploading…';
+
+        try {
+            const item =
+                await uploadImageToMediaLibrary(
+                    file
+                );
+
+            restoreSelection();
+
+            const safeUrl =
+                String(
+                    item.url
+                ).replace(
+                    /"/g,
+                    '&quot;'
+                );
+
+            const safeAlt =
+                String(
+                    item.alt_text
+                    || ''
+                ).replace(
+                    /"/g,
+                    '&quot;'
+                );
+
+            document.execCommand(
+                'insertHTML',
+                false,
+                '<p><img src="'
+                + safeUrl
+                + '" alt="'
+                + safeAlt
+                + '" style="max-width:100%;height:auto;display:block;margin:20px auto;border-radius:8px"></p><p><br></p>'
+            );
+
+            saveSelection();
+            syncEditor();
+
+        } catch (error) {
+            alert(
+                error.message
+                || 'Could not upload this image.'
+            );
+
+        } finally {
+            chooseEditorImageBtn.disabled =
+                false;
+
+            chooseEditorImageBtn.textContent =
+                oldText;
+
+            editorImageInput.value =
+                '';
+        }
+    }
+);
 
 /* YouTube embed */
 const youtubeBtn = document.getElementById('youtubeBtn');
@@ -2417,6 +2708,491 @@ updateEditorialCounters();
 
 
 /* =========================
+   MEDIA LIBRARY PICKER
+========================= */
+const openMediaLibraryBtn =
+    document.getElementById(
+        'openMediaLibraryBtn'
+    );
+
+const mediaPickerOverlay =
+    document.getElementById(
+        'mediaPickerOverlay'
+    );
+
+const mediaPickerClose =
+    document.getElementById(
+        'mediaPickerClose'
+    );
+
+const mediaPickerSearch =
+    document.getElementById(
+        'mediaPickerSearch'
+    );
+
+const mediaPickerSearchBtn =
+    document.getElementById(
+        'mediaPickerSearchBtn'
+    );
+
+const mediaPickerUploadBtn =
+    document.getElementById(
+        'mediaPickerUploadBtn'
+    );
+
+const mediaPickerUploadInput =
+    document.getElementById(
+        'mediaPickerUploadInput'
+    );
+
+const mediaPickerGrid =
+    document.getElementById(
+        'mediaPickerGrid'
+    );
+
+const mediaPickerStatus =
+    document.getElementById(
+        'mediaPickerStatus'
+    );
+
+const mediaPickerLoadMore =
+    document.getElementById(
+        'mediaPickerLoadMore'
+    );
+
+const mediaLibraryUrl =
+    @json(
+        route(
+            'admin.media.library'
+        )
+    );
+
+let mediaPickerPage = 1;
+let mediaPickerHasMore = false;
+let mediaPickerTarget = null;
+
+function setMediaPickerStatus(text) {
+    if (mediaPickerStatus) {
+        mediaPickerStatus.textContent =
+            text || '';
+    }
+}
+
+function escapeMediaHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function renderMediaPickerItems(
+    items,
+    append = false
+) {
+    if (!mediaPickerGrid) {
+        return;
+    }
+
+    if (!append) {
+        mediaPickerGrid.innerHTML =
+            '';
+    }
+
+    if (
+        !items.length
+        && !append
+    ) {
+        mediaPickerGrid.innerHTML =
+            '<div class="media-picker-empty">'
+            + 'No images found.'
+            + '</div>';
+
+        return;
+    }
+
+    items.forEach(
+        function (item) {
+            const button =
+                document.createElement(
+                    'button'
+                );
+
+            button.type =
+                'button';
+
+            button.className =
+                'media-picker-item';
+
+            button.dataset.url =
+                item.url;
+
+            button.dataset.alt =
+                item.alt_text || '';
+
+            button.innerHTML =
+                '<img loading="lazy" src="'
+                + escapeMediaHtml(
+                    item.url
+                )
+                + '" alt="">'
+                + '<div class="media-picker-caption">'
+                + escapeMediaHtml(
+                    item.filename
+                    || 'Image'
+                )
+                + '</div>';
+
+            mediaPickerGrid.appendChild(
+                button
+            );
+        }
+    );
+}
+
+async function loadMediaPicker(
+    page = 1,
+    append = false
+) {
+    if (!mediaPickerGrid) {
+        return;
+    }
+
+    setMediaPickerStatus(
+        'Loading…'
+    );
+
+    const params =
+        new URLSearchParams();
+
+    params.set(
+        'page',
+        page
+    );
+
+    const q =
+        (
+            mediaPickerSearch?.value
+            || ''
+        ).trim();
+
+    if (q) {
+        params.set(
+            'q',
+            q
+        );
+    }
+
+    try {
+        const response =
+            await fetch(
+                mediaLibraryUrl
+                + '?'
+                + params.toString(),
+                {
+                    headers: {
+                        'Accept':
+                            'application/json'
+                    }
+                }
+            );
+
+        const data =
+            await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                data.message
+                || 'Could not load Media Library.'
+            );
+        }
+
+        renderMediaPickerItems(
+            data.items || [],
+            append
+        );
+
+        mediaPickerPage =
+            data.current_page || page;
+
+        mediaPickerHasMore =
+            !!data.has_more;
+
+        if (mediaPickerLoadMore) {
+            mediaPickerLoadMore.style.display =
+                mediaPickerHasMore
+                    ? ''
+                    : 'none';
+        }
+
+        setMediaPickerStatus(
+            (data.items || []).length
+            + ' image(s) loaded'
+        );
+
+    } catch (error) {
+        setMediaPickerStatus(
+            error.message
+            || 'Could not load Media Library.'
+        );
+    }
+}
+
+function openMediaPicker(
+    type,
+    editor = null
+) {
+    mediaPickerTarget = {
+        type: type,
+        editor: editor
+    };
+
+    mediaPickerOverlay
+        ?.classList
+        .add('open');
+
+    mediaPickerOverlay
+        ?.setAttribute(
+            'aria-hidden',
+            'false'
+        );
+
+    loadMediaPicker(
+        1,
+        false
+    );
+}
+
+function closeMediaPicker() {
+    mediaPickerOverlay
+        ?.classList
+        .remove('open');
+
+    mediaPickerOverlay
+        ?.setAttribute(
+            'aria-hidden',
+            'true'
+        );
+}
+
+openMediaLibraryBtn?.addEventListener(
+    'click',
+    function () {
+        saveSelection();
+
+        openMediaPicker(
+            'main'
+        );
+    }
+);
+
+mediaPickerClose?.addEventListener(
+    'click',
+    closeMediaPicker
+);
+
+mediaPickerOverlay?.addEventListener(
+    'click',
+    function (event) {
+        if (
+            event.target
+            === mediaPickerOverlay
+        ) {
+            closeMediaPicker();
+        }
+    }
+);
+
+mediaPickerSearchBtn?.addEventListener(
+    'click',
+    function () {
+        loadMediaPicker(
+            1,
+            false
+        );
+    }
+);
+
+mediaPickerSearch?.addEventListener(
+    'keydown',
+    function (event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+
+            loadMediaPicker(
+                1,
+                false
+            );
+        }
+    }
+);
+
+mediaPickerLoadMore?.addEventListener(
+    'click',
+    function () {
+        if (!mediaPickerHasMore) {
+            return;
+        }
+
+        loadMediaPicker(
+            mediaPickerPage + 1,
+            true
+        );
+    }
+);
+
+mediaPickerGrid?.addEventListener(
+    'click',
+    function (event) {
+        const item =
+            event.target.closest(
+                '.media-picker-item'
+            );
+
+        if (
+            !item
+            || !mediaPickerTarget
+        ) {
+            return;
+        }
+
+        const url =
+            item.dataset.url;
+
+        const alt =
+            item.dataset.alt || '';
+
+        if (
+            mediaPickerTarget.type
+            === 'chapter'
+            && mediaPickerTarget.editor
+        ) {
+            insertHtmlAtChapterCursor(
+                mediaPickerTarget.editor,
+                chapterImageHtml(
+                    url,
+                    alt
+                )
+            );
+
+            setChapterStatus(
+                'Media Library image inserted.'
+            );
+
+        } else {
+            restoreSelection();
+
+            const safeUrl =
+                String(url)
+                    .replace(
+                        /"/g,
+                        '&quot;'
+                    );
+
+            const safeAlt =
+                String(alt)
+                    .replace(
+                        /"/g,
+                        '&quot;'
+                    );
+
+            document.execCommand(
+                'insertHTML',
+                false,
+                '<p><img src="'
+                + safeUrl
+                + '" alt="'
+                + safeAlt
+                + '" style="max-width:100%;height:auto;display:block;margin:20px auto;border-radius:8px"></p><p><br></p>'
+            );
+
+            saveSelection();
+            syncEditor();
+        }
+
+        closeMediaPicker();
+    }
+);
+
+mediaPickerUploadBtn?.addEventListener(
+    'click',
+    function () {
+        mediaPickerUploadInput.value =
+            '';
+
+        mediaPickerUploadInput.click();
+    }
+);
+
+mediaPickerUploadInput?.addEventListener(
+    'change',
+    async function () {
+        const file =
+            this.files?.[0];
+
+        if (!file) {
+            return;
+        }
+
+        const oldText =
+            mediaPickerUploadBtn.textContent;
+
+        mediaPickerUploadBtn.disabled =
+            true;
+
+        mediaPickerUploadBtn.textContent =
+            'Uploading…';
+
+        try {
+            const item =
+                await uploadImageToMediaLibrary(
+                    file
+                );
+
+            renderMediaPickerItems(
+                [item],
+                false
+            );
+
+            setMediaPickerStatus(
+                'Uploaded. Click the image to insert it.'
+            );
+
+        } catch (error) {
+            setMediaPickerStatus(
+                error.message
+                || 'Image upload failed.'
+            );
+
+        } finally {
+            mediaPickerUploadBtn.disabled =
+                false;
+
+            mediaPickerUploadBtn.textContent =
+                oldText;
+
+            this.value = '';
+        }
+    }
+);
+
+document.addEventListener(
+    'keydown',
+    function (event) {
+        if (
+            event.key === 'Escape'
+            && mediaPickerOverlay
+                ?.classList
+                .contains('open')
+        ) {
+            closeMediaPicker();
+        }
+    }
+);
+
+
+/* =========================
    CONTENT MODE / ALIASES / CHAPTER BUILDER
 ========================= */
 const contentModeInputs =
@@ -3038,6 +3814,7 @@ function createChapterCard(
         + '<button type="button" data-chapter-link>Link</button>'
         + '<button type="button" data-chapter-youtube>YouTube</button>'
         + '<button type="button" data-chapter-image>Choose Image</button>'
+        + '<button type="button" data-chapter-media-library>Media Library</button>'
         + '<button type="button" data-chapter-image-url>Image URL</button>'
         + '</div>'
         + '<div class="chapter-rich-editor" contenteditable="true"></div>'
@@ -3218,11 +3995,23 @@ function insertHtmlAtChapterCursor(
     syncChaptersJson();
 }
 
-function chapterImageHtml(src) {
+function chapterImageHtml(
+    src,
+    alt = ''
+) {
+    const safeAlt =
+        String(alt)
+            .replace(
+                /"/g,
+                '&quot;'
+            );
+
     return (
         '<p><img src="'
         + src
-        + '" alt="" '
+        + '" alt="'
+        + safeAlt
+        + '" '
         + 'style="max-width:100%;height:auto;display:block;margin:16px auto;"></p>'
         + '<p><br></p>'
     );
@@ -3230,7 +4019,7 @@ function chapterImageHtml(src) {
 
 chapterImageInput?.addEventListener(
     'change',
-    function () {
+    async function () {
         const file =
             this.files?.[0];
 
@@ -3242,39 +4031,45 @@ chapterImageInput?.addEventListener(
             return;
         }
 
-        if (
-            !file.type.startsWith(
-                'image/'
-            )
-        ) {
-            alert(
-                'Please choose an image file.'
+        const editor =
+            activeChapterEditor;
+
+        try {
+            setChapterStatus(
+                'Uploading chapter image…'
             );
 
-            this.value = '';
-            return;
-        }
-
-        const reader =
-            new FileReader();
-
-        reader.onload =
-            function () {
-                insertHtmlAtChapterCursor(
-                    activeChapterEditor,
-                    chapterImageHtml(
-                        reader.result
-                    )
+            const item =
+                await uploadImageToMediaLibrary(
+                    file
                 );
 
-                activeChapterEditor =
-                    null;
+            insertHtmlAtChapterCursor(
+                editor,
+                chapterImageHtml(
+                    item.url,
+                    item.alt_text || ''
+                )
+            );
 
-                chapterImageInput.value =
-                    '';
-            };
+            setChapterStatus(
+                'Image uploaded to Media Library and inserted.'
+            );
 
-        reader.readAsDataURL(file);
+        } catch (error) {
+            setChapterStatus(
+                error.message
+                || 'Could not upload this image.',
+                true
+            );
+
+        } finally {
+            activeChapterEditor =
+                null;
+
+            chapterImageInput.value =
+                '';
+        }
     }
 );
 
@@ -3430,6 +4225,25 @@ chapterListAdmin?.addEventListener(
                 );
 
             chapterImageInput?.click();
+
+            return;
+        }
+
+        const mediaLibraryButton =
+            event.target.closest(
+                '[data-chapter-media-library]'
+            );
+
+        if (mediaLibraryButton) {
+            const editor =
+                card.querySelector(
+                    '.chapter-rich-editor'
+                );
+
+            openMediaPicker(
+                'chapter',
+                editor
+            );
 
             return;
         }
