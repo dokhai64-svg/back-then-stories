@@ -5,12 +5,15 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\{
     Article,
+    ArticleAlias,
+    ArticleChapter,
     Artist,
     Category,
     Site
 };
 use App\Services\ImageUploadService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -42,6 +45,7 @@ class ArticleController extends Controller
                 'artist',
                 'category',
                 'author',
+                'aliases',
             ])
             ->when(
                 $request->filled('q'),
@@ -171,7 +175,10 @@ class ArticleController extends Controller
             'admin.articles.form',
             $this->lookups() + [
                 'article' =>
-                    new Article(['status' => 'draft']),
+                    new Article([
+                        'status' => 'draft',
+                        'content_mode' => 'normal',
+                    ]),
             ]
         );
     }
@@ -184,6 +191,10 @@ class ArticleController extends Controller
 
         $data['user_id'] =
             $request->user()->id;
+
+        $data['content_mode'] =
+            $data['content_mode']
+            ?? 'normal';
 
         $data['slug'] = $this->slug(
             $data['site_id'],
@@ -237,6 +248,11 @@ class ArticleController extends Controller
 
     public function edit(Article $article)
     {
+        $article->load([
+            'aliases',
+            'chapters',
+        ]);
+
         return view(
             'admin.articles.form',
             $this->lookups() + compact('article')
@@ -249,6 +265,7 @@ class ArticleController extends Controller
             'artist',
             'category',
             'author',
+            'chapters',
         ]);
 
         $related = Article::query()
@@ -276,6 +293,10 @@ class ArticleController extends Controller
             $request,
             $article
         );
+
+        $data['content_mode'] =
+            $data['content_mode']
+            ?? 'normal';
 
         $data['slug'] = $this->slug(
             $data['site_id'],
@@ -331,6 +352,10 @@ class ArticleController extends Controller
 
         $article->update($data);
 
+        $this->syncAliasSite(
+            $article
+        );
+
         return redirect()
             ->route(
                 'admin.articles.index',
@@ -340,6 +365,253 @@ class ArticleController extends Controller
                 'ok',
                 'Article saved.'
             );
+    }
+
+    public function generateAliases(
+        Request $request,
+        Article $article
+    ) {
+        $data = $request->validate([
+            'count' => [
+                'required',
+                'integer',
+                'min:1',
+                'max:20',
+            ],
+        ]);
+
+        DB::transaction(
+            function () use (
+                $article,
+                $data
+            ) {
+                for (
+                    $i = 0;
+                    $i < $data['count'];
+                    $i++
+                ) {
+                    $article->aliases()
+                        ->create([
+                            'site_id' =>
+                                $article->site_id,
+                            'slug' =>
+                                $this->uniqueAliasSlug(
+                                    $article
+                                ),
+                        ]);
+                }
+            }
+        );
+
+        return response()->json([
+            'message' =>
+                $data['count']
+                . ' alternate URL(s) created.',
+            'aliases' =>
+                $this->aliasesPayload(
+                    $article
+                ),
+        ]);
+    }
+
+    public function storeAlias(
+        Request $request,
+        Article $article
+    ) {
+        $data = $request->validate([
+            'slug' => [
+                'required',
+                'string',
+                'max:255',
+            ],
+        ]);
+
+        $slug =
+            Str::slug(
+                $data['slug']
+            );
+
+        if ($slug === '') {
+            return response()->json([
+                'message' =>
+                    'Please enter a valid alternate slug.',
+            ], 422);
+        }
+
+        if (
+            !$this->aliasSlugAvailable(
+                $article,
+                $slug
+            )
+        ) {
+            return response()->json([
+                'message' =>
+                    'That slug is already in use.',
+            ], 422);
+        }
+
+        $article->aliases()
+            ->create([
+                'site_id' =>
+                    $article->site_id,
+                'slug' =>
+                    $slug,
+            ]);
+
+        return response()->json([
+            'message' =>
+                'Alternate URL added.',
+            'aliases' =>
+                $this->aliasesPayload(
+                    $article
+                ),
+        ]);
+    }
+
+    public function destroyAlias(
+        Article $article,
+        ArticleAlias $alias
+    ) {
+        abort_unless(
+            (int) $alias->article_id
+            === (int) $article->id,
+            404
+        );
+
+        $alias->delete();
+
+        return response()->json([
+            'message' =>
+                'Alternate URL removed.',
+            'aliases' =>
+                $this->aliasesPayload(
+                    $article
+                ),
+        ]);
+    }
+
+    public function storeChapter(
+        Request $request,
+        Article $article
+    ) {
+        $data = $request->validate([
+            'title' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'body' => [
+                'required',
+                'string',
+                'min:40',
+            ],
+        ]);
+
+        $nextNumber =
+            ((int) $article->chapters()
+                ->max('chapter_number'))
+            + 1;
+
+        $chapter =
+            $article->chapters()
+                ->create([
+                    'chapter_number' =>
+                        $nextNumber,
+                    'title' =>
+                        trim(
+                            (string) (
+                                $data['title']
+                                ?? ''
+                            )
+                        ) ?: null,
+                    'body' =>
+                        $data['body'],
+                ]);
+
+        $article->update([
+            'content_mode' =>
+                'chapter',
+        ]);
+
+        return response()->json([
+            'message' =>
+                'Chapter created.',
+            'chapter' =>
+                $this->chapterPayload(
+                    $article,
+                    $chapter
+                ),
+            'chapters' =>
+                $this->chaptersPayload(
+                    $article
+                ),
+        ]);
+    }
+
+    public function updateChapter(
+        Request $request,
+        Article $article,
+        ArticleChapter $chapter
+    ) {
+        $this->assertChapterOwner(
+            $article,
+            $chapter
+        );
+
+        $data = $request->validate([
+            'title' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'body' => [
+                'required',
+                'string',
+                'min:40',
+            ],
+        ]);
+
+        $chapter->update([
+            'title' =>
+                trim(
+                    (string) (
+                        $data['title']
+                        ?? ''
+                    )
+                ) ?: null,
+            'body' =>
+                $data['body'],
+        ]);
+
+        return response()->json([
+            'message' =>
+                'Chapter saved.',
+            'chapters' =>
+                $this->chaptersPayload(
+                    $article
+                ),
+        ]);
+    }
+
+    public function destroyChapter(
+        Article $article,
+        ArticleChapter $chapter
+    ) {
+        $this->assertChapterOwner(
+            $article,
+            $chapter
+        );
+
+        $chapter->delete();
+
+        return response()->json([
+            'message' =>
+                'Chapter deleted.',
+            'chapters' =>
+                $this->chaptersPayload(
+                    $article
+                ),
+        ]);
     }
 
     public function destroy(Article $article)
@@ -426,6 +698,13 @@ class ArticleController extends Controller
                 'nullable',
                 'string',
                 'max:255',
+            ],
+            'content_mode' => [
+                'required',
+                Rule::in([
+                    'normal',
+                    'chapter',
+                ]),
             ],
             'excerpt' => [
                 'nullable',
@@ -540,12 +819,229 @@ class ArticleController extends Controller
                         )
                 )
                 ->exists()
+            ||
+            ArticleAlias::query()
+                ->where(
+                    'site_id',
+                    $siteId
+                )
+                ->where(
+                    'slug',
+                    $slug
+                )
+                ->exists()
         ) {
             $slug =
                 $base . '-' . $index++;
         }
 
         return $slug;
+    }
+
+    private function aliasesPayload(
+        Article $article
+    ) {
+        return $article->aliases()
+            ->orderBy('id')
+            ->get()
+            ->map(
+                fn ($alias) => [
+                    'id' =>
+                        $alias->id,
+                    'slug' =>
+                        $alias->slug,
+                    'url' =>
+                        route(
+                            'articles.show',
+                            [
+                                'slug' =>
+                                    $alias->slug,
+                            ]
+                        ),
+                ]
+            )
+            ->values();
+    }
+
+    private function chaptersPayload(
+        Article $article
+    ) {
+        return $article->chapters()
+            ->orderBy(
+                'chapter_number'
+            )
+            ->get()
+            ->map(
+                fn ($chapter) =>
+                    $this->chapterPayload(
+                        $article,
+                        $chapter
+                    )
+            )
+            ->values();
+    }
+
+    private function chapterPayload(
+        Article $article,
+        ArticleChapter $chapter
+    ): array {
+        return [
+            'id' =>
+                $chapter->id,
+            'chapter_number' =>
+                $chapter->chapter_number,
+            'title' =>
+                $chapter->title,
+            'body' =>
+                $chapter->body,
+            'views' =>
+                (int) $chapter->views,
+            'url' =>
+                route(
+                    'articles.chapter',
+                    [
+                        'slug' =>
+                            $article->slug,
+                        'chapterNumber' =>
+                            $chapter->chapter_number,
+                    ]
+                ),
+        ];
+    }
+
+    private function assertChapterOwner(
+        Article $article,
+        ArticleChapter $chapter
+    ): void {
+        abort_unless(
+            (int) $chapter->article_id
+            === (int) $article->id,
+            404
+        );
+    }
+
+    private function aliasSlugAvailable(
+        Article $article,
+        string $slug,
+        ?int $ignoreAliasId = null
+    ): bool {
+        if (
+            Article::withTrashed()
+                ->where(
+                    'site_id',
+                    $article->site_id
+                )
+                ->where(
+                    'slug',
+                    $slug
+                )
+                ->exists()
+        ) {
+            return false;
+        }
+
+        return !ArticleAlias::query()
+            ->where(
+                'site_id',
+                $article->site_id
+            )
+            ->where(
+                'slug',
+                $slug
+            )
+            ->when(
+                $ignoreAliasId,
+                fn ($q) =>
+                    $q->whereKeyNot(
+                        $ignoreAliasId
+                    )
+            )
+            ->exists();
+    }
+
+    private function uniqueAliasSlug(
+        Article $article,
+        ?string $preferred = null,
+        ?int $ignoreAliasId = null
+    ): string {
+        $base =
+            Str::slug(
+                $preferred
+                ?: $article->title
+            )
+            ?: 'story';
+
+        do {
+            $slug =
+                $base
+                . '-'
+                . Str::lower(
+                    Str::random(6)
+                );
+        } while (
+            !$this->aliasSlugAvailable(
+                $article,
+                $slug,
+                $ignoreAliasId
+            )
+        );
+
+        return $slug;
+    }
+
+    private function syncAliasSite(
+        Article $article
+    ): void {
+        $aliases =
+            $article->aliases()
+                ->get();
+
+        foreach ($aliases as $alias) {
+            $slug =
+                $alias->slug;
+
+            $conflict =
+                Article::withTrashed()
+                    ->where(
+                        'site_id',
+                        $article->site_id
+                    )
+                    ->where(
+                        'slug',
+                        $slug
+                    )
+                    ->exists()
+                ||
+                ArticleAlias::query()
+                    ->where(
+                        'site_id',
+                        $article->site_id
+                    )
+                    ->where(
+                        'slug',
+                        $slug
+                    )
+                    ->whereKeyNot(
+                        $alias->id
+                    )
+                    ->exists();
+
+            if ($conflict) {
+                $slug =
+                    $this->uniqueAliasSlug(
+                        $article,
+                        $slug,
+                        $alias->id
+                    );
+            }
+
+            $alias->update([
+                'site_id' =>
+                    $article->site_id,
+                'slug' =>
+                    $slug,
+            ]);
+        }
     }
 
     private function downloadRemoteImage(
