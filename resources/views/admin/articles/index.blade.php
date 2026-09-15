@@ -390,6 +390,69 @@
         flex:1;
     }
 }
+
+.url-copy-wrap{
+    position:relative;
+    display:inline-flex;
+}
+.url-copy-count{
+    position:absolute;
+    top:-4px;
+    right:-4px;
+    min-width:16px;
+    height:16px;
+    padding:0 4px;
+    border-radius:999px;
+    background:#1687e8;
+    color:#fff;
+    font-size:8px;
+    line-height:16px;
+    text-align:center;
+    pointer-events:none;
+}
+.url-copy-dropdown{
+    position:absolute;
+    z-index:50;
+    top:36px;
+    right:0;
+    width:255px;
+    padding:6px;
+    border:1px solid #dbe3ec;
+    border-radius:10px;
+    background:#fff;
+    box-shadow:0 12px 30px rgba(15,23,42,.14);
+}
+.url-copy-dropdown[hidden]{
+    display:none;
+}
+.url-copy-choice{
+    width:100%;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    padding:9px 10px;
+    border:0;
+    border-radius:7px;
+    background:transparent;
+    color:#334155;
+    text-align:left;
+    font-size:11px;
+    cursor:pointer;
+}
+.url-copy-choice:hover{
+    background:#f8fafc;
+}
+.url-copy-choice small{
+    color:#94a3b8;
+    font-size:9px;
+}
+.url-copy-divider{
+    height:1px;
+    margin:5px 3px;
+    background:#edf1f5;
+}
+
 </style>
 
 <div class="article-manager-head">
@@ -687,6 +750,29 @@
                                         )
                                         : null
                                 );
+
+                        $aliasUrls =
+                            $article->aliases
+                                ->map(
+                                    fn ($alias) =>
+                                        route(
+                                            'articles.show',
+                                            [
+                                                'slug' =>
+                                                    $alias->slug,
+                                            ]
+                                        )
+                                )
+                                ->values();
+
+                        $allPublicUrls =
+                            collect([
+                                $publicUrl,
+                            ])
+                                ->concat(
+                                    $aliasUrls
+                                )
+                                ->values();
                     @endphp
 
                     <tr>
@@ -819,20 +905,73 @@
                                             <path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"></path>
                                         </svg>
                                     </a>
+                                    {{-- Copy primary / alternate URLs --}}
+                                    <div class="url-copy-wrap">
+                                        <button
+                                            type="button"
+                                            class="icon-action url-copy-toggle"
+                                            data-menu-id="url-copy-menu-{{ $article->id }}"
+                                            title="Copy article URL"
+                                            aria-label="Copy article URL"
+                                        >
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+                                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                            </svg>
+                                        </button>
 
-                                    {{-- Copy public URL --}}
-                                    <button
-                                        type="button"
-                                        class="icon-action copy-url"
-                                        data-url="{{ $publicUrl }}"
-                                        title="Copy public link"
-                                        aria-label="Copy public link"
-                                    >
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <rect x="9" y="9" width="13" height="13" rx="2"></rect>
-                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                                        </svg>
-                                    </button>
+                                        @if($aliasUrls->count())
+                                            <span class="url-copy-count">
+                                                {{ $allPublicUrls->count() }}
+                                            </span>
+                                        @endif
+
+                                        <div
+                                            id="url-copy-menu-{{ $article->id }}"
+                                            class="url-copy-dropdown"
+                                            hidden
+                                        >
+                                            <button
+                                                type="button"
+                                                class="url-copy-choice copy-one-url"
+                                                data-url="{{ $publicUrl }}"
+                                            >
+                                                <span>Primary URL</span>
+                                                <small>1 link</small>
+                                            </button>
+
+                                            @if($aliasUrls->count())
+                                                <button
+                                                    type="button"
+                                                    class="url-copy-choice copy-many-urls"
+                                                    data-urls="{{ e($allPublicUrls->toJson()) }}"
+                                                >
+                                                    <span>All URLs</span>
+                                                    <small>
+                                                        {{ $allPublicUrls->count() }}
+                                                        links
+                                                    </small>
+                                                </button>
+
+                                                <div class="url-copy-divider"></div>
+
+                                                @foreach($aliasUrls as $aliasIndex => $aliasUrl)
+                                                    <button
+                                                        type="button"
+                                                        class="url-copy-choice copy-one-url"
+                                                        data-url="{{ $aliasUrl }}"
+                                                    >
+                                                        <span>
+                                                            Alternate URL
+                                                            {{ $aliasIndex + 1 }}
+                                                        </span>
+                                                        <small>copy</small>
+                                                    </button>
+                                                @endforeach
+                                            @endif
+                                        </div>
+                                    </div>
+
 
                                     {{-- Edit --}}
                                     <a
@@ -1201,10 +1340,62 @@ async function copyText(value) {
     textarea.remove();
 }
 
-document
-    .querySelectorAll('.copy-url')
-    .forEach(function (button) {
+function closeUrlCopyMenus(
+    exceptId = null
+) {
+    document
+        .querySelectorAll(
+            '.url-copy-dropdown'
+        )
+        .forEach(function (menu) {
+            if (
+                !exceptId
+                || menu.id !== exceptId
+            ) {
+                menu.hidden = true;
+            }
+        });
+}
 
+document
+    .querySelectorAll(
+        '.url-copy-toggle'
+    )
+    .forEach(function (button) {
+        button.addEventListener(
+            'click',
+            function (event) {
+                event.stopPropagation();
+
+                const menu =
+                    document.getElementById(
+                        this.dataset.menuId
+                    );
+
+                if (!menu) {
+                    return;
+                }
+
+                const willOpen =
+                    menu.hidden;
+
+                closeUrlCopyMenus(
+                    willOpen
+                        ? menu.id
+                        : null
+                );
+
+                menu.hidden =
+                    !willOpen;
+            }
+        );
+    });
+
+document
+    .querySelectorAll(
+        '.copy-one-url'
+    )
+    .forEach(function (button) {
         button.addEventListener(
             'click',
             async function () {
@@ -1214,19 +1405,64 @@ document
                     );
 
                     showToast(
-                        'Article link copied'
+                        'URL copied'
                     );
+
+                    closeUrlCopyMenus();
                 } catch (error) {
                     console.error(error);
 
                     showToast(
-                        'Could not copy link'
+                        'Could not copy URL'
                     );
                 }
             }
         );
-
     });
+
+document
+    .querySelectorAll(
+        '.copy-many-urls'
+    )
+    .forEach(function (button) {
+        button.addEventListener(
+            'click',
+            async function () {
+                try {
+                    const urls =
+                        JSON.parse(
+                            this.dataset.urls
+                            || '[]'
+                        );
+
+                    await copyText(
+                        urls.join('\n')
+                    );
+
+                    showToast(
+                        urls.length
+                        + ' URLs copied'
+                    );
+
+                    closeUrlCopyMenus();
+                } catch (error) {
+                    console.error(error);
+
+                    showToast(
+                        'Could not copy URLs'
+                    );
+                }
+            }
+        );
+    });
+
+document.addEventListener(
+    'click',
+    function () {
+        closeUrlCopyMenus();
+    }
+);
+
 </script>
 
 @endpush
