@@ -114,6 +114,155 @@
         font-size:18px;
     }
 }
+
+.content-mode-toggle{
+    display:inline-flex;
+    padding:3px;
+    border:1px solid #dbe3ec;
+    border-radius:10px;
+    background:#f8fafc;
+    gap:3px;
+}
+.content-mode-option{
+    position:relative;
+    margin:0;
+    cursor:pointer;
+}
+.content-mode-option input{
+    position:absolute;
+    opacity:0;
+    pointer-events:none;
+}
+.content-mode-option span{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width:90px;
+    min-height:34px;
+    padding:0 14px;
+    border-radius:8px;
+    color:#475569;
+    font-size:12px;
+    font-weight:750;
+}
+.content-mode-option input:checked + span{
+    background:#1687e8;
+    color:#fff;
+}
+.alias-panel,
+.chapter-manager{
+    padding:14px;
+    border:1px solid #dbe3ec;
+    border-radius:12px;
+    background:#fbfdff;
+}
+.alias-controls,
+.chapter-actions{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-top:10px;
+}
+.alias-count-wrap{
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    min-height:36px;
+    padding:0 9px;
+    border:1px solid #dbe3ec;
+    border-radius:8px;
+    background:#fff;
+}
+.alias-count-wrap input{
+    width:52px;
+    min-height:28px;
+    padding:3px 5px;
+    border:0;
+    text-align:center;
+}
+.alias-list,
+.chapter-list-admin{
+    display:grid;
+    gap:8px;
+    margin-top:12px;
+}
+.alias-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    min-width:0;
+    padding:8px 10px;
+    border:1px solid #e5e7eb;
+    border-radius:8px;
+    background:#fff;
+}
+.alias-row code{
+    flex:1;
+    min-width:0;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    color:#334155;
+    font-size:11px;
+}
+.alias-mini-btn{
+    border:1px solid #dbe3ec;
+    border-radius:7px;
+    background:#fff;
+    color:#475569;
+    min-height:30px;
+    padding:0 9px;
+    font-size:10px;
+    font-weight:700;
+    cursor:pointer;
+}
+.alias-mini-btn.danger{
+    color:#b91c1c;
+}
+.alias-status,
+.chapter-status{
+    margin-top:8px;
+    min-height:18px;
+    color:#64748b;
+    font-size:11px;
+}
+.chapter-card{
+    padding:12px;
+    border:1px solid #e5e7eb;
+    border-radius:10px;
+    background:#fff;
+}
+.chapter-card-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin-bottom:9px;
+}
+.chapter-card-title{
+    font-size:12px;
+    font-weight:800;
+}
+.chapter-card input{
+    margin-bottom:8px;
+}
+.chapter-card textarea{
+    min-height:150px;
+    font-family:inherit;
+}
+.chapter-card-actions{
+    display:flex;
+    gap:7px;
+    flex-wrap:wrap;
+    margin-top:8px;
+}
+.chapter-public-link{
+    color:#1687e8;
+    font-size:10px;
+    text-decoration:none;
+}
+
 </style>
 
 <form
@@ -258,6 +407,259 @@
                         name="slug"
                         value="{{ old('slug', $article->slug) }}"
                     >
+                </div>
+
+                <div class="field">
+                    <label>Content mode</label>
+
+                    @php
+                        $contentMode =
+                            old(
+                                'content_mode',
+                                $article->content_mode
+                                ?? 'normal'
+                            );
+                    @endphp
+
+                    <div class="content-mode-toggle">
+                        <label class="content-mode-option">
+                            <input
+                                type="radio"
+                                name="content_mode"
+                                value="normal"
+                                @checked($contentMode === 'normal')
+                            >
+                            <span>Normal</span>
+                        </label>
+
+                        <label class="content-mode-option">
+                            <input
+                                type="radio"
+                                name="content_mode"
+                                value="chapter"
+                                @checked($contentMode === 'chapter')
+                            >
+                            <span>Chapter</span>
+                        </label>
+                    </div>
+
+                    <div
+                        class="muted"
+                        style="font-size:11px;margin-top:6px"
+                    >
+                        Chapter mode creates separate public pages with Previous / Next navigation.
+                    </div>
+                </div>
+
+                <div class="field alias-panel">
+                    <label>
+                        Alternate slugs
+                        <span class="muted">
+                            — extra URLs for the same article
+                        </span>
+                    </label>
+
+                    @if($article->exists)
+                        <div class="alias-controls">
+                            <div class="alias-count-wrap">
+                                <span>QTY</span>
+
+                                <input
+                                    type="number"
+                                    id="aliasGenerateCount"
+                                    value="3"
+                                    min="1"
+                                    max="20"
+                                >
+                            </div>
+
+                            <button
+                                type="button"
+                                id="generateAliasesBtn"
+                                class="btn secondary"
+                                style="width:auto"
+                            >
+                                ✨ Generate random
+                            </button>
+
+                            <button
+                                type="button"
+                                id="addAliasBtn"
+                                class="btn secondary"
+                                style="width:auto"
+                            >
+                                + Add alias
+                            </button>
+                        </div>
+
+                        <div
+                            id="aliasList"
+                            class="alias-list"
+                        >
+                            @foreach($article->aliases as $alias)
+                                <div
+                                    class="alias-row"
+                                    data-alias-id="{{ $alias->id }}"
+                                    data-slug="{{ $alias->slug }}"
+                                >
+                                    <code>
+                                        /story/{{ $alias->slug }}
+                                    </code>
+
+                                    <button
+                                        type="button"
+                                        class="alias-mini-btn copy-alias-btn"
+                                    >
+                                        Copy
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        class="alias-mini-btn danger delete-alias-btn"
+                                    >
+                                        Delete
+                                    </button>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        <div
+                            id="aliasStatus"
+                            class="alias-status"
+                        >
+                            {{ $article->aliases->count() }}
+                            alternate URL(s)
+                        </div>
+                    @else
+                        <div
+                            class="muted"
+                            style="font-size:11px;margin-top:7px"
+                        >
+                            Save this article once, then Edit it to create alternate URLs.
+                        </div>
+                    @endif
+                </div>
+
+                <div
+                    id="chapterManager"
+                    class="field chapter-manager"
+                    style="{{
+                        $contentMode === 'chapter'
+                            ? ''
+                            : 'display:none'
+                    }}"
+                >
+                    <label>
+                        Chapter Manager
+                        <span class="muted">
+                            — each chapter opens as a new public page
+                        </span>
+                    </label>
+
+                    @if($article->exists)
+
+                        <div
+                            class="muted"
+                            style="font-size:11px;margin-top:5px"
+                        >
+                            The main Article Body acts as the story introduction. Each chapter below has its own page, ads, view counter and Previous / Next buttons.
+                        </div>
+
+                        <div
+                            id="chapterListAdmin"
+                            class="chapter-list-admin"
+                        >
+                            @foreach($article->chapters as $chapter)
+                                <div
+                                    class="chapter-card"
+                                    data-chapter-id="{{ $chapter->id }}"
+                                >
+                                    <div class="chapter-card-head">
+                                        <div class="chapter-card-title">
+                                            Chapter
+                                            {{ $chapter->chapter_number }}
+                                            ·
+                                            {{ number_format($chapter->views) }}
+                                            views
+                                        </div>
+
+                                        <a
+                                            class="chapter-public-link"
+                                            href="{{
+                                                route(
+                                                    'articles.chapter',
+                                                    [
+                                                        'slug' =>
+                                                            $article->slug,
+                                                        'chapterNumber' =>
+                                                            $chapter->chapter_number,
+                                                    ]
+                                                )
+                                            }}"
+                                            target="_blank"
+                                            rel="noopener"
+                                        >
+                                            Open ↗
+                                        </a>
+                                    </div>
+
+                                    <input
+                                        class="chapter-title-input"
+                                        value="{{ $chapter->title }}"
+                                        placeholder="Chapter title (optional)"
+                                    >
+
+                                    <textarea
+                                        class="chapter-body-input"
+                                        placeholder="Chapter content"
+                                    >{{ $chapter->body }}</textarea>
+
+                                    <div class="chapter-card-actions">
+                                        <button
+                                            type="button"
+                                            class="alias-mini-btn save-chapter-btn"
+                                        >
+                                            Save chapter
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            class="alias-mini-btn danger delete-chapter-btn"
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        <div class="chapter-actions">
+                            <button
+                                type="button"
+                                id="addChapterBtn"
+                                class="btn secondary"
+                                style="width:auto"
+                            >
+                                + Add Chapter
+                            </button>
+                        </div>
+
+                        <div
+                            id="chapterStatus"
+                            class="chapter-status"
+                        >
+                            {{ $article->chapters->count() }}
+                            chapter(s)
+                        </div>
+
+                    @else
+                        <div
+                            class="muted"
+                            style="font-size:11px;margin-top:7px"
+                        >
+                            Save this article once, then Edit it to add Chapter 1, Chapter 2 and more.
+                        </div>
+                    @endif
                 </div>
 
                 <div class="field">
@@ -1713,6 +2115,707 @@ function updateEditorialCounters() {
 
 updateEditorialCounters();
 
+
+/* =========================
+   CONTENT MODE / ALIASES / CHAPTERS
+========================= */
+const contentModeInputs =
+    document.querySelectorAll(
+        'input[name="content_mode"]'
+    );
+
+const chapterManager =
+    document.getElementById(
+        'chapterManager'
+    );
+
+function refreshContentModeUi() {
+    const selected =
+        document.querySelector(
+            'input[name="content_mode"]:checked'
+        );
+
+    if (chapterManager) {
+        chapterManager.style.display =
+            selected?.value === 'chapter'
+                ? ''
+                : 'none';
+    }
+}
+
+contentModeInputs.forEach(
+    function (input) {
+        input.addEventListener(
+            'change',
+            refreshContentModeUi
+        );
+    }
+);
+
+refreshContentModeUi();
+
+@if($article->exists)
+
+const aliasList =
+    document.getElementById('aliasList');
+
+const aliasStatus =
+    document.getElementById('aliasStatus');
+
+const aliasGenerateCount =
+    document.getElementById(
+        'aliasGenerateCount'
+    );
+
+const generateAliasesBtn =
+    document.getElementById(
+        'generateAliasesBtn'
+    );
+
+const addAliasBtn =
+    document.getElementById(
+        'addAliasBtn'
+    );
+
+const aliasGenerateUrl =
+    @json(
+        route(
+            'admin.articles.aliases.generate',
+            $article
+        )
+    );
+
+const aliasStoreUrl =
+    @json(
+        route(
+            'admin.articles.aliases.store',
+            $article
+        )
+    );
+
+const aliasDestroyTemplate =
+    @json(
+        route(
+            'admin.articles.aliases.destroy',
+            [
+                'article' =>
+                    $article,
+                'alias' =>
+                    '__ALIAS__',
+            ]
+        )
+    );
+
+const chapterListAdmin =
+    document.getElementById(
+        'chapterListAdmin'
+    );
+
+const chapterStatus =
+    document.getElementById(
+        'chapterStatus'
+    );
+
+const addChapterBtn =
+    document.getElementById(
+        'addChapterBtn'
+    );
+
+const chapterStoreUrl =
+    @json(
+        route(
+            'admin.articles.chapters.store',
+            $article
+        )
+    );
+
+const chapterUpdateTemplate =
+    @json(
+        route(
+            'admin.articles.chapters.update',
+            [
+                'article' =>
+                    $article,
+                'chapter' =>
+                    '__CHAPTER__',
+            ]
+        )
+    );
+
+const chapterDestroyTemplate =
+    @json(
+        route(
+            'admin.articles.chapters.destroy',
+            [
+                'article' =>
+                    $article,
+                'chapter' =>
+                    '__CHAPTER__',
+            ]
+        )
+    );
+
+const chapterPublicBase =
+    @json(
+        route(
+            'articles.show',
+            $article->slug
+        )
+    );
+
+async function uiCopyText(text) {
+    if (
+        navigator.clipboard &&
+        window.isSecureContext
+    ) {
+        await navigator.clipboard
+            .writeText(text);
+
+        return;
+    }
+
+    const textarea =
+        document.createElement(
+            'textarea'
+        );
+
+    textarea.value = text;
+    textarea.style.position =
+        'fixed';
+
+    textarea.style.opacity =
+        '0';
+
+    document.body.appendChild(
+        textarea
+    );
+
+    textarea.select();
+    document.execCommand('copy');
+    textarea.remove();
+}
+
+async function adminJsonRequest(
+    url,
+    method,
+    payload = null
+) {
+    const options = {
+        method: method,
+        headers: {
+            'Accept':
+                'application/json',
+            'X-CSRF-TOKEN':
+                @json(csrf_token())
+        }
+    };
+
+    if (payload !== null) {
+        options.headers[
+            'Content-Type'
+        ] = 'application/json';
+
+        options.body =
+            JSON.stringify(
+                payload
+            );
+    }
+
+    const response =
+        await fetch(
+            url,
+            options
+        );
+
+    let data = {};
+
+    try {
+        data =
+            await response.json();
+    } catch (e) {
+        data = {};
+    }
+
+    if (!response.ok) {
+        const firstError =
+            data.errors
+                ? Object.values(
+                    data.errors
+                )[0]?.[0]
+                : null;
+
+        throw new Error(
+            firstError
+            || data.message
+            || 'Request failed.'
+        );
+    }
+
+    return data;
+}
+
+function setAliasStatus(
+    message,
+    isError = false
+) {
+    aliasStatus.textContent =
+        message;
+
+    aliasStatus.style.color =
+        isError
+            ? '#b91c1c'
+            : '#64748b';
+}
+
+function renderAliases(aliases) {
+    aliasList.innerHTML = '';
+
+    aliases.forEach(
+        function (alias) {
+            const row =
+                document.createElement(
+                    'div'
+                );
+
+            row.className =
+                'alias-row';
+
+            row.dataset.aliasId =
+                alias.id;
+
+            row.dataset.slug =
+                alias.slug;
+
+            row.innerHTML =
+                '<code></code>'
+                + '<button type="button" class="alias-mini-btn copy-alias-btn">Copy</button>'
+                + '<button type="button" class="alias-mini-btn danger delete-alias-btn">Delete</button>';
+
+            row.querySelector(
+                'code'
+            ).textContent =
+                '/story/'
+                + alias.slug;
+
+            aliasList.appendChild(
+                row
+            );
+        }
+    );
+
+    setAliasStatus(
+        aliases.length
+        + ' alternate URL(s)'
+    );
+}
+
+generateAliasesBtn?.addEventListener(
+    'click',
+    async function () {
+        const count =
+            Math.max(
+                1,
+                Math.min(
+                    20,
+                    parseInt(
+                        aliasGenerateCount.value,
+                        10
+                    ) || 3
+                )
+            );
+
+        const oldLabel =
+            this.textContent;
+
+        this.disabled = true;
+        this.textContent =
+            'Generating…';
+
+        try {
+            const data =
+                await adminJsonRequest(
+                    aliasGenerateUrl,
+                    'POST',
+                    {
+                        count: count
+                    }
+                );
+
+            renderAliases(
+                data.aliases || []
+            );
+        } catch (error) {
+            setAliasStatus(
+                error.message,
+                true
+            );
+        } finally {
+            this.disabled = false;
+            this.textContent =
+                oldLabel;
+        }
+    }
+);
+
+addAliasBtn?.addEventListener(
+    'click',
+    async function () {
+        const slug =
+            prompt(
+                'Enter an alternate slug.'
+            );
+
+        if (!slug) {
+            return;
+        }
+
+        try {
+            const data =
+                await adminJsonRequest(
+                    aliasStoreUrl,
+                    'POST',
+                    { slug: slug }
+                );
+
+            renderAliases(
+                data.aliases || []
+            );
+        } catch (error) {
+            setAliasStatus(
+                error.message,
+                true
+            );
+        }
+    }
+);
+
+aliasList?.addEventListener(
+    'click',
+    async function (event) {
+        const row =
+            event.target.closest(
+                '.alias-row'
+            );
+
+        if (!row) {
+            return;
+        }
+
+        if (
+            event.target.closest(
+                '.copy-alias-btn'
+            )
+        ) {
+            try {
+                await uiCopyText(
+                    window.location.origin
+                    + '/story/'
+                    + row.dataset.slug
+                );
+
+                setAliasStatus(
+                    'Alternate URL copied.'
+                );
+            } catch (error) {
+                setAliasStatus(
+                    'Could not copy URL.',
+                    true
+                );
+            }
+
+            return;
+        }
+
+        if (
+            event.target.closest(
+                '.delete-alias-btn'
+            )
+        ) {
+            if (
+                !confirm(
+                    'Delete this alternate URL?'
+                )
+            ) {
+                return;
+            }
+
+            try {
+                const data =
+                    await adminJsonRequest(
+                        aliasDestroyTemplate
+                            .replace(
+                                '__ALIAS__',
+                                row.dataset.aliasId
+                            ),
+                        'DELETE'
+                    );
+
+                renderAliases(
+                    data.aliases || []
+                );
+            } catch (error) {
+                setAliasStatus(
+                    error.message,
+                    true
+                );
+            }
+        }
+    }
+);
+
+function setChapterStatus(
+    message,
+    isError = false
+) {
+    chapterStatus.textContent =
+        message;
+
+    chapterStatus.style.color =
+        isError
+            ? '#b91c1c'
+            : '#64748b';
+}
+
+function chapterUrl(
+    chapterNumber
+) {
+    return chapterPublicBase
+        + '/chapter/'
+        + chapterNumber;
+}
+
+function renderChapters(chapters) {
+    chapterListAdmin.innerHTML = '';
+
+    chapters.forEach(
+        function (chapter) {
+            const card =
+                document.createElement(
+                    'div'
+                );
+
+            card.className =
+                'chapter-card';
+
+            card.dataset.chapterId =
+                chapter.id;
+
+            card.innerHTML =
+                '<div class="chapter-card-head">'
+                + '<div class="chapter-card-title"></div>'
+                + '<a class="chapter-public-link" target="_blank" rel="noopener">Open ↗</a>'
+                + '</div>'
+                + '<input class="chapter-title-input" placeholder="Chapter title (optional)">'
+                + '<textarea class="chapter-body-input" placeholder="Chapter content"></textarea>'
+                + '<div class="chapter-card-actions">'
+                + '<button type="button" class="alias-mini-btn save-chapter-btn">Save chapter</button>'
+                + '<button type="button" class="alias-mini-btn danger delete-chapter-btn">Delete</button>'
+                + '</div>';
+
+            card.querySelector(
+                '.chapter-card-title'
+            ).textContent =
+                'Chapter '
+                + chapter.chapter_number
+                + ' · '
+                + chapter.views
+                + ' views';
+
+            const openLink =
+                card.querySelector(
+                    '.chapter-public-link'
+                );
+
+            openLink.href =
+                chapter.url
+                || chapterUrl(
+                    chapter.chapter_number
+                );
+
+            card.querySelector(
+                '.chapter-title-input'
+            ).value =
+                chapter.title || '';
+
+            card.querySelector(
+                '.chapter-body-input'
+            ).value =
+                chapter.body || '';
+
+            chapterListAdmin.appendChild(
+                card
+            );
+        }
+    );
+
+    setChapterStatus(
+        chapters.length
+        + ' chapter(s)'
+    );
+}
+
+addChapterBtn?.addEventListener(
+    'click',
+    async function () {
+        const title =
+            prompt(
+                'Chapter title (optional). Click OK to continue.'
+            );
+
+        if (title === null) {
+            return;
+        }
+
+        const body =
+            prompt(
+                'Paste the new chapter content. Minimum 40 characters.'
+            );
+
+        if (!body) {
+            return;
+        }
+
+        setChapterStatus(
+            'Creating chapter…'
+        );
+
+        try {
+            const data =
+                await adminJsonRequest(
+                    chapterStoreUrl,
+                    'POST',
+                    {
+                        title: title,
+                        body: body
+                    }
+                );
+
+            renderChapters(
+                data.chapters || []
+            );
+
+            const chapterMode =
+                document.querySelector(
+                    'input[name="content_mode"][value="chapter"]'
+                );
+
+            if (chapterMode) {
+                chapterMode.checked = true;
+                refreshContentModeUi();
+            }
+        } catch (error) {
+            setChapterStatus(
+                error.message,
+                true
+            );
+        }
+    }
+);
+
+chapterListAdmin?.addEventListener(
+    'click',
+    async function (event) {
+        const card =
+            event.target.closest(
+                '.chapter-card'
+            );
+
+        if (!card) {
+            return;
+        }
+
+        const chapterId =
+            card.dataset.chapterId;
+
+        if (
+            event.target.closest(
+                '.save-chapter-btn'
+            )
+        ) {
+            const title =
+                card.querySelector(
+                    '.chapter-title-input'
+                ).value;
+
+            const body =
+                card.querySelector(
+                    '.chapter-body-input'
+                ).value;
+
+            setChapterStatus(
+                'Saving chapter…'
+            );
+
+            try {
+                const data =
+                    await adminJsonRequest(
+                        chapterUpdateTemplate
+                            .replace(
+                                '__CHAPTER__',
+                                chapterId
+                            ),
+                        'PUT',
+                        {
+                            title: title,
+                            body: body
+                        }
+                    );
+
+                renderChapters(
+                    data.chapters || []
+                );
+            } catch (error) {
+                setChapterStatus(
+                    error.message,
+                    true
+                );
+            }
+
+            return;
+        }
+
+        if (
+            event.target.closest(
+                '.delete-chapter-btn'
+            )
+        ) {
+            if (
+                !confirm(
+                    'Delete this chapter page?'
+                )
+            ) {
+                return;
+            }
+
+            setChapterStatus(
+                'Deleting chapter…'
+            );
+
+            try {
+                const data =
+                    await adminJsonRequest(
+                        chapterDestroyTemplate
+                            .replace(
+                                '__CHAPTER__',
+                                chapterId
+                            ),
+                        'DELETE'
+                    );
+
+                renderChapters(
+                    data.chapters || []
+                );
+            } catch (error) {
+                setChapterStatus(
+                    error.message,
+                    true
+                );
+            }
+        }
+    }
+);
+
+@endif
 
 /* =========================
    LIVE SEARCH PREVIEW
