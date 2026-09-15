@@ -16,9 +16,18 @@ class GeminiArticleController extends Controller
         $requestId = 'ai_' . Str::lower(Str::random(8));
 
         $data = $request->validate([
+            'mode' => ['nullable', 'in:seo,rewrite'],
             'title' => ['required', 'string', 'max:255'],
             'body' => ['required', 'string', 'max:60000'],
         ]);
+
+        if (($data['mode'] ?? 'seo') === 'rewrite') {
+            return $this->rewriteBody(
+                (string) $data['title'],
+                (string) $data['body'],
+                $requestId
+            );
+        }
 
         $apiKey = trim((string) config('gemini.api_key'));
 
@@ -310,6 +319,542 @@ class GeminiArticleController extends Controller
                 . Str::limit($lastMessage, 240, ''),
             'request_id' => $requestId,
         ], 503);
+    }
+
+    private function rewriteBody(
+        string $title,
+        string $sourceHtml,
+        string $requestId
+    ) {
+        $apiKey = trim(
+            (string) config('gemini.api_key')
+        );
+
+        if ($apiKey === '') {
+            return response()->json([
+                'message' =>
+                    'GEMINI_API_KEY is not configured in Railway.',
+                'request_id' => $requestId,
+            ], 500);
+        }
+
+        $sourceText = trim(
+            preg_replace(
+                '/\s+/u',
+                ' ',
+                strip_tags($sourceHtml)
+            )
+        );
+
+        if (mb_strlen($sourceText) < 200) {
+            return response()->json([
+                'message' =>
+                    'The article body is too short to rewrite.',
+                'request_id' => $requestId,
+            ], 422);
+        }
+
+        /*
+         * Protect existing media so AI cannot alter image/video URLs.
+         * The placeholders are restored after the rewrite.
+         */
+        [$protectedHtml, $mediaBlocks] =
+            $this->protectMediaBlocks($sourceHtml);
+
+        $protectedHtml = Str::limit(
+            $protectedHtml,
+            42000,
+            ''
+        );
+
+        $prompt =
+            $this->rewritePrompt()
+            . "\n\nARTICLE TITLE:\n"
+            . trim($title)
+            . "\n\nSOURCE BODY HTML:\n"
+            . $protectedHtml;
+
+        /*
+         * Keep this inside Railway/PHP's 30-second request limit.
+         * Whole-article rewriting needs more output time than SEO,
+         * so use only fast models and a strict total budget.
+         */
+        $models = [
+            'gemini-flash-lite-latest',
+            'gemini-3.5-flash-lite',
+        ];
+
+        $startedAt = microtime(true);
+        $hardBudgetSeconds = 25.0;
+
+        $lastMessage =
+            'Gemini is temporarily unavailable. Please try again.';
+
+        foreach ($models as $model) {
+            $elapsed =
+                microtime(true) - $startedAt;
+
+            $remaining =
+                $hardBudgetSeconds - $elapsed;
+
+            if ($remaining < 5) {
+                break;
+            }
+
+            $timeout =
+                (int) max(
+                    5,
+                    min(14, floor($remaining - 2))
+                );
+
+            try {
+                $response = Http::withHeaders([
+                        'x-goog-api-key' => $apiKey,
+                    ])
+                    ->acceptJson()
+                    ->asJson()
+                    ->connectTimeout(2)
+                    ->timeout($timeout)
+                    ->post(
+                        'https://generativelanguage.googleapis.com/v1beta/interactions',
+                        [
+                            'model' => $model,
+                            'input' => $prompt,
+                            'generation_config' => [
+                                'thinking_level' => 'low',
+                                'max_output_tokens' => 5000,
+                            ],
+                            'response_format' => [
+                                'type' => 'text',
+                                'mime_type' =>
+                                    'application/json',
+                                'schema' => [
+                                    'type' => 'object',
+                                    'properties' => [
+                                        'rewritten_body' => [
+                                            'type' => 'string',
+                                        ],
+                                    ],
+                                    'required' => [
+                                        'rewritten_body',
+                                    ],
+                                ],
+                            ],
+                        ]
+                    );
+
+            } catch (ConnectionException $e) {
+                $lastMessage =
+                    'Connection timeout while rewriting with '
+                    . $model
+                    . '.';
+
+                logger()->warning(
+                    'Gemini rewrite timeout; trying fallback',
+                    [
+                        'request_id' => $requestId,
+                        'model' => $model,
+                        'message' => $e->getMessage(),
+                    ]
+                );
+
+                continue;
+
+            } catch (Throwable $e) {
+                $lastMessage =
+                    'Gemini rewrite request error on '
+                    . $model
+                    . '.';
+
+                logger()->warning(
+                    'Gemini rewrite exception; trying fallback',
+                    [
+                        'request_id' => $requestId,
+                        'model' => $model,
+                        'exception' => get_class($e),
+                        'message' => $e->getMessage(),
+                    ]
+                );
+
+                continue;
+            }
+
+            if (!$response->successful()) {
+                $message = trim(
+                    (string) (
+                        $response->json('error.message')
+                        ?: 'Gemini rewrite request failed.'
+                    )
+                );
+
+                $lastMessage = $message;
+
+                logger()->warning(
+                    'Gemini rewrite model request failed',
+                    [
+                        'request_id' => $requestId,
+                        'model' => $model,
+                        'status' => $response->status(),
+                        'message' => $message,
+                    ]
+                );
+
+                if (
+                    in_array(
+                        $response->status(),
+                        [401, 403],
+                        true
+                    )
+                ) {
+                    return response()->json([
+                        'message' =>
+                            'Gemini rejected the API key or project permission. Check GEMINI_API_KEY in Railway.',
+                        'request_id' => $requestId,
+                    ], 502);
+                }
+
+                if ($response->status() === 400) {
+                    return response()->json([
+                        'message' =>
+                            'Gemini rewrite request format error: '
+                            . Str::limit(
+                                $message,
+                                240,
+                                ''
+                            ),
+                        'request_id' => $requestId,
+                    ], 502);
+                }
+
+                continue;
+            }
+
+            $payload = $response->json();
+            $outputText =
+                $this->extractOutputText($payload);
+
+            if ($outputText === '') {
+                $lastMessage =
+                    'Gemini returned no rewritten article.';
+                continue;
+            }
+
+            $outputText = preg_replace(
+                '/^```(?:json)?\s*|\s*```$/i',
+                '',
+                $outputText
+            );
+
+            $result = json_decode(
+                trim((string) $outputText),
+                true
+            );
+
+            if (!is_array($result)) {
+                $lastMessage =
+                    'Gemini returned invalid JSON while rewriting.';
+                continue;
+            }
+
+            $rewritten = trim(
+                (string) (
+                    $result['rewritten_body']
+                    ?? ''
+                )
+            );
+
+            if ($rewritten === '') {
+                $lastMessage =
+                    'Gemini returned an empty rewritten article.';
+                continue;
+            }
+
+            $rewritten =
+                $this->sanitizeRewrittenHtml(
+                    $rewritten
+                );
+
+            $rewritten =
+                $this->restoreMediaBlocks(
+                    $rewritten,
+                    $mediaBlocks
+                );
+
+            $quality =
+                $this->passesRewriteGuard(
+                    $sourceHtml,
+                    $rewritten
+                );
+
+            if (!$quality['ok']) {
+                $lastMessage =
+                    'Rewrite originality/quality check failed: '
+                    . $quality['reason'];
+
+                logger()->warning(
+                    'Gemini rewrite guard rejected output',
+                    [
+                        'request_id' => $requestId,
+                        'model' => $model,
+                        'reason' => $quality['reason'],
+                    ]
+                );
+
+                continue;
+            }
+
+            return response()->json([
+                'rewritten_body' => $rewritten,
+                'ai_model' => $model,
+                'request_id' => $requestId,
+                'originality_check' => 'passed',
+            ]);
+        }
+
+        return response()->json([
+            'message' =>
+                'AI could not finish the rewrite within the server time limit. '
+                . Str::limit(
+                    $lastMessage,
+                    220,
+                    ''
+                ),
+            'request_id' => $requestId,
+        ], 503);
+    }
+
+    private function protectMediaBlocks(
+        string $html
+    ): array {
+        $media = [];
+
+        $protected = preg_replace_callback(
+            '/<iframe\b[^>]*>.*?<\/iframe>|<img\b[^>]*>/is',
+            function ($match) use (&$media) {
+                $index = count($media);
+                $token =
+                    '[[MEDIA_' . $index . ']]';
+
+                $media[$token] =
+                    $match[0];
+
+                return $token;
+            },
+            $html
+        );
+
+        return [
+            is_string($protected)
+                ? $protected
+                : $html,
+            $media,
+        ];
+    }
+
+    private function restoreMediaBlocks(
+        string $html,
+        array $mediaBlocks
+    ): string {
+        foreach ($mediaBlocks as $token => $block) {
+            $html = str_replace(
+                $token,
+                $block,
+                $html
+            );
+        }
+
+        return $html;
+    }
+
+    private function sanitizeRewrittenHtml(
+        string $html
+    ): string {
+        /*
+         * AI may format the response, but it is still untrusted output.
+         * Keep only simple editorial tags.
+         * Original IMG/IFRAME blocks are restored separately afterward.
+         */
+        $html = strip_tags(
+            $html,
+            '<p><h2><h3><blockquote><ul><ol><li><strong><b><em><i><u><br>'
+        );
+
+        $html = preg_replace(
+            '/\s+on[a-z]+\s*=\s*(["\']).*?\1/is',
+            '',
+            $html
+        );
+
+        return trim(
+            is_string($html)
+                ? $html
+                : ''
+        );
+    }
+
+    private function passesRewriteGuard(
+        string $sourceHtml,
+        string $rewrittenHtml
+    ): array {
+        $sourceWords =
+            $this->words($sourceHtml);
+
+        $rewrittenWords =
+            $this->words($rewrittenHtml);
+
+        $sourceCount =
+            count($sourceWords);
+
+        $rewrittenCount =
+            count($rewrittenWords);
+
+        if ($sourceCount < 40) {
+            return [
+                'ok' => false,
+                'reason' =>
+                    'source article is too short',
+            ];
+        }
+
+        $ratio =
+            $rewrittenCount / max(1, $sourceCount);
+
+        if ($ratio < 0.60) {
+            return [
+                'ok' => false,
+                'reason' =>
+                    'rewritten article became too short',
+            ];
+        }
+
+        if ($ratio > 1.55) {
+            return [
+                'ok' => false,
+                'reason' =>
+                    'rewritten article became too long',
+            ];
+        }
+
+        $sourceLookup = [];
+
+        $gramSize = 10;
+
+        for (
+            $i = 0;
+            $i <= $sourceCount - $gramSize;
+            $i++
+        ) {
+            $gram = implode(
+                ' ',
+                array_slice(
+                    $sourceWords,
+                    $i,
+                    $gramSize
+                )
+            );
+
+            $sourceLookup[$gram] = true;
+        }
+
+        $rewrittenGramCount =
+            max(
+                0,
+                $rewrittenCount - $gramSize + 1
+            );
+
+        if ($rewrittenGramCount > 0) {
+            $matches = 0;
+
+            for (
+                $i = 0;
+                $i <= $rewrittenCount - $gramSize;
+                $i++
+            ) {
+                $gram = implode(
+                    ' ',
+                    array_slice(
+                        $rewrittenWords,
+                        $i,
+                        $gramSize
+                    )
+                );
+
+                if (isset($sourceLookup[$gram])) {
+                    $matches++;
+                }
+            }
+
+            $overlap =
+                $matches / $rewrittenGramCount;
+
+            if ($overlap > 0.08) {
+                return [
+                    'ok' => false,
+                    'reason' =>
+                        'too many exact 10-word sequences remained',
+                ];
+            }
+        }
+
+        return [
+            'ok' => true,
+            'reason' => 'passed',
+        ];
+    }
+
+    private function rewritePrompt(): string
+    {
+        return <<<'PROMPT'
+You are a senior American-English editor rewriting a complete article for independent publication.
+
+The source article may have been copied from another website. Treat it ONLY as factual reference material. Your job is to produce a genuinely independently written article, not a synonym-swapped version.
+
+FACTUAL SAFETY
+- Preserve only facts supported by the supplied source.
+- Preserve proper names, song titles, album titles, film titles, dates, chart positions, places, and other factual identifiers when they are supported.
+- Do NOT invent facts, quotes, motives, relationships, dates, chart positions, awards, sales figures, or historical claims.
+- If the source is uncertain, keep the rewritten wording equally cautious.
+- Do not turn "recorded" into "released," or "released" into "recorded."
+
+ORIGINALITY
+- Rewrite ALL prose from scratch.
+- Change sentence structure, paragraph structure, transitions, emphasis, and information order where reasonable.
+- Do not copy a complete sentence from the source.
+- Avoid long exact phrases from the source except proper names, titles, dates, and unavoidable factual terms.
+- Do not merely replace words with synonyms.
+- Do not imitate the source site's promotional voice.
+- Do not mention the source website.
+- Do not add citations or attribution unless the source text itself requires attribution for a claim.
+
+EDITORIAL STYLE
+- Natural contemporary American English.
+- Clear, engaging, factual storytelling.
+- No keyword stuffing.
+- No generic AI phrases such as "delve into," "in the tapestry of," "timeless legacy," or "this article explores."
+- No fake quotes.
+- No hashtags.
+- Do not add a call to action.
+- Keep approximately the same amount of factual substance as the source.
+- Aim for roughly 80% to 120% of the source length when possible.
+
+HTML OUTPUT
+- Return clean article-body HTML only inside the required JSON field.
+- Use <p> for normal paragraphs.
+- Use <h2> or <h3> only when a useful section heading improves readability.
+- You may use <blockquote>, <ul>, <ol>, <li>, <strong>, and <em> when justified.
+- Do not output <html>, <head>, <body>, <script>, or CSS.
+- Any token in the form [[MEDIA_0]], [[MEDIA_1]], etc. represents an existing image or video.
+- Preserve every MEDIA token EXACTLY, once, and keep it in a sensible location near the surrounding material.
+- Never alter, remove, duplicate, or rename a MEDIA token.
+
+FINAL CHECK
+Before returning:
+1. Every factual statement must be supported by the source.
+2. The wording and sentence construction must be independently written.
+3. The rewritten article must retain the source's important factual substance.
+4. Every MEDIA token must remain unchanged.
+5. Return exactly one JSON field: rewritten_body.
+PROMPT;
     }
 
     private function extractOutputText(array $payload): string
