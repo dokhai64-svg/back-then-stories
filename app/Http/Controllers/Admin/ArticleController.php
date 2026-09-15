@@ -196,6 +196,29 @@ class ArticleController extends Controller
             $data['content_mode']
             ?? 'normal';
 
+        $data['skip_intro'] =
+            $request->boolean(
+                'skip_intro'
+            );
+
+        $chaptersJson =
+            $data['chapters_json']
+            ?? null;
+
+        unset(
+            $data['chapters_json']
+        );
+
+        $data['body'] =
+            trim(
+                (string) (
+                    $data['body']
+                    ?? ''
+                )
+            ) !== ''
+                ? $data['body']
+                : '<p></p>';
+
         $data['slug'] = $this->slug(
             $data['site_id'],
             $data['title'],
@@ -233,7 +256,13 @@ class ArticleController extends Controller
 
         $this->normalizePublish($data);
 
-        Article::create($data);
+        $article =
+            Article::create($data);
+
+        $this->syncChaptersFromJson(
+            $article,
+            $chaptersJson
+        );
 
         return redirect()
             ->route(
@@ -298,6 +327,29 @@ class ArticleController extends Controller
             $data['content_mode']
             ?? 'normal';
 
+        $data['skip_intro'] =
+            $request->boolean(
+                'skip_intro'
+            );
+
+        $chaptersJson =
+            $data['chapters_json']
+            ?? null;
+
+        unset(
+            $data['chapters_json']
+        );
+
+        $data['body'] =
+            trim(
+                (string) (
+                    $data['body']
+                    ?? ''
+                )
+            ) !== ''
+                ? $data['body']
+                : '<p></p>';
+
         $data['slug'] = $this->slug(
             $data['site_id'],
             $data['title'],
@@ -351,6 +403,11 @@ class ArticleController extends Controller
         $this->normalizePublish($data);
 
         $article->update($data);
+
+        $this->syncChaptersFromJson(
+            $article,
+            $chaptersJson
+        );
 
         $this->syncAliasSite(
             $article
@@ -706,14 +763,24 @@ class ArticleController extends Controller
                     'chapter',
                 ]),
             ],
+            'skip_intro' => [
+                'nullable',
+                'boolean',
+            ],
+            'chapters_json' => [
+                'nullable',
+                'string',
+                'max:1000000',
+            ],
             'excerpt' => [
                 'nullable',
                 'string',
                 'max:800',
             ],
             'body' => [
-                'required',
+                'nullable',
                 'string',
+                'required_if:content_mode,normal',
             ],
             'featured_image_file' => [
                 'nullable',
@@ -836,6 +903,128 @@ class ArticleController extends Controller
         }
 
         return $slug;
+    }
+
+    private function syncChaptersFromJson(
+        Article $article,
+        ?string $chaptersJson
+    ): void {
+        if ($chaptersJson === null) {
+            return;
+        }
+
+        $decoded =
+            json_decode(
+                $chaptersJson,
+                true
+            );
+
+        if (!is_array($decoded)) {
+            return;
+        }
+
+        $decoded =
+            array_slice(
+                $decoded,
+                0,
+                30
+            );
+
+        $existing =
+            $article->chapters()
+                ->get()
+                ->keyBy('id');
+
+        $keptIds = [];
+        $number = 1;
+
+        foreach ($decoded as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $body =
+                trim(
+                    (string) (
+                        $row['body']
+                        ?? ''
+                    )
+                );
+
+            if ($body === '') {
+                continue;
+            }
+
+            $title =
+                trim(
+                    (string) (
+                        $row['title']
+                        ?? ''
+                    )
+                );
+
+            $payload = [
+                'chapter_number' =>
+                    $number++,
+                'title' =>
+                    $title !== ''
+                        ? Str::limit(
+                            $title,
+                            255,
+                            ''
+                        )
+                        : null,
+                'body' =>
+                    Str::limit(
+                        $body,
+                        120000,
+                        ''
+                    ),
+            ];
+
+            $id =
+                isset($row['id'])
+                    ? (int) $row['id']
+                    : 0;
+
+            if (
+                $id > 0 &&
+                $existing->has($id)
+            ) {
+                $chapter =
+                    $existing->get($id);
+
+                $chapter->update(
+                    $payload
+                );
+
+                $keptIds[] =
+                    $chapter->id;
+
+                continue;
+            }
+
+            $chapter =
+                $article->chapters()
+                    ->create(
+                        $payload
+                    );
+
+            $keptIds[] =
+                $chapter->id;
+        }
+
+        $deleteQuery =
+            $article->chapters();
+
+        if ($keptIds) {
+            $deleteQuery->whereNotIn(
+                'id',
+                $keptIds
+            );
+        }
+
+        $deleteQuery->delete();
     }
 
     private function aliasesPayload(
