@@ -1458,11 +1458,40 @@
 
 
                     <input
-                        id="featuredImageInput"
-                        type="file"
-                        name="featured_image_file"
-                        accept="image/*"
+                        type="hidden"
+                        id="featuredMediaId"
+                        name="featured_media_id"
+                        value=""
                     >
+
+                    <div
+                        style="
+                            display:flex;
+                            gap:8px;
+                            align-items:center;
+                            flex-wrap:wrap;
+                        "
+                    >
+                        <input
+                            id="featuredImageInput"
+                            type="file"
+                            name="featured_image_file"
+                            accept="image/*"
+                            style="
+                                flex:1 1 220px;
+                                min-width:180px;
+                            "
+                        >
+
+                        <button
+                            type="button"
+                            id="featuredMediaLibraryBtn"
+                            class="btn secondary"
+                            style="width:auto"
+                        >
+                            Media Library
+                        </button>
+                    </div>
 
 
                     <div
@@ -2825,6 +2854,9 @@ function renderMediaPickerItems(
             button.className =
                 'media-picker-item';
 
+            button.dataset.id =
+                item.id;
+
             button.dataset.url =
                 item.url;
 
@@ -3079,6 +3111,58 @@ mediaPickerGrid?.addEventListener(
             setChapterStatus(
                 'Media Library image inserted.'
             );
+
+        } else if (
+            mediaPickerTarget.type
+            === 'featured'
+        ) {
+            const selectedId =
+                item.dataset.id;
+
+            if (featuredMediaId) {
+                featuredMediaId.value =
+                    selectedId || '';
+            }
+
+            if (featuredImageInput) {
+                featuredImageInput.value =
+                    '';
+            }
+
+            const importedField =
+                document.getElementById(
+                    'importedFeaturedImageUrl'
+                );
+
+            if (importedField) {
+                importedField.value =
+                    '';
+            }
+
+            if (featuredImageObjectUrl) {
+                URL.revokeObjectURL(
+                    featuredImageObjectUrl
+                );
+
+                featuredImageObjectUrl =
+                    null;
+            }
+
+            featuredImagePreview.src =
+                url;
+
+            featuredImagePreviewWrap
+                .style
+                .display =
+                'block';
+
+            featuredImageName.textContent =
+                'Media Library'
+                + (
+                    alt
+                        ? ' • ' + alt
+                        : ''
+                );
 
         } else {
             restoreSelection();
@@ -4645,6 +4729,16 @@ const featuredImagePreviewWrap =
 const featuredImageName =
     document.getElementById('featuredImageName');
 
+const featuredMediaId =
+    document.getElementById(
+        'featuredMediaId'
+    );
+
+const featuredMediaLibraryBtn =
+    document.getElementById(
+        'featuredMediaLibraryBtn'
+    );
+
 let featuredImageObjectUrl = null;
 
 featuredImageInput.addEventListener('change', function () {
@@ -4673,12 +4767,34 @@ featuredImageInput.addEventListener('change', function () {
     featuredImagePreviewWrap.style.display =
         'block';
 
+    if (featuredMediaId) {
+        featuredMediaId.value = '';
+    }
+
+    const importedField =
+        document.getElementById(
+            'importedFeaturedImageUrl'
+        );
+
+    if (importedField) {
+        importedField.value = '';
+    }
+
     const sizeMb =
         (file.size / 1024 / 1024).toFixed(2);
 
     featuredImageName.textContent =
         file.name + ' • ' + sizeMb + ' MB';
 });
+
+featuredMediaLibraryBtn?.addEventListener(
+    'click',
+    function () {
+        openMediaPicker(
+            'featured'
+        );
+    }
+);
 
 window.addEventListener('beforeunload', function () {
     if (featuredImageObjectUrl) {
