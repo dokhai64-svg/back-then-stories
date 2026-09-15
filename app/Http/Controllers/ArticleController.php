@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\{
     Article,
+    ArticleAlias,
+    ArticleChapter,
     ArticleDailyView
 };
 use App\Services\SiteResolver;
@@ -19,28 +21,19 @@ class ArticleController extends Controller
             app(SiteResolver::class)
                 ->current();
 
-        $query = Article::query()
-            ->with([
-                'site',
-                'artist',
-                'category',
-                'author',
-            ])
-            ->published()
-            ->where(
-                'slug',
-                $slug
-            );
-
-        if ($site) {
-            $query->where(
-                'site_id',
-                $site->id
-            );
-        }
-
         $article =
-            $query->firstOrFail();
+            $this->resolveArticleBySlug(
+                $slug,
+                $site
+            );
+
+        $article->load([
+            'site',
+            'artist',
+            'category',
+            'author',
+            'chapters',
+        ]);
 
         $this->recordView($article);
 
@@ -65,6 +58,197 @@ class ArticleController extends Controller
                 'article',
                 'related'
             )
+        );
+    }
+
+    public function chapter(
+        string $slug,
+        int $chapterNumber
+    ) {
+        $site =
+            app(SiteResolver::class)
+                ->current();
+
+        $article =
+            $this->resolveArticleBySlug(
+                $slug,
+                $site
+            );
+
+        abort_unless(
+            $article->content_mode
+            === 'chapter',
+            404
+        );
+
+        $article->load([
+            'site',
+            'artist',
+            'category',
+            'author',
+            'chapters',
+        ]);
+
+        $chapter =
+            $article->chapters
+                ->firstWhere(
+                    'chapter_number',
+                    $chapterNumber
+                );
+
+        abort_unless(
+            $chapter,
+            404
+        );
+
+        $chapters =
+            $article->chapters
+                ->values();
+
+        $position =
+            $chapters->search(
+                fn ($item) =>
+                    (int) $item->id
+                    === (int) $chapter->id
+            );
+
+        $previousChapter =
+            $position !== false
+            && $position > 0
+                ? $chapters[
+                    $position - 1
+                ]
+                : null;
+
+        $nextChapter =
+            $position !== false
+            && $position
+                < $chapters->count() - 1
+                ? $chapters[
+                    $position + 1
+                ]
+                : null;
+
+        $this->recordChapterView(
+            $chapter
+        );
+
+        $related =
+            $this->recommendedArticles(
+                $article,
+                4
+            );
+
+        return view(
+            'articles.chapter',
+            compact(
+                'article',
+                'chapter',
+                'chapters',
+                'previousChapter',
+                'nextChapter',
+                'related'
+            )
+        );
+    }
+
+    private function resolveArticleBySlug(
+        string $slug,
+        $site
+    ): Article {
+        $query =
+            Article::query()
+                ->published()
+                ->where(
+                    'slug',
+                    $slug
+                );
+
+        if ($site) {
+            $query->where(
+                'site_id',
+                $site->id
+            );
+        }
+
+        $article =
+            $query->first();
+
+        if ($article) {
+            return $article;
+        }
+
+        $aliasQuery =
+            ArticleAlias::query()
+                ->where(
+                    'slug',
+                    $slug
+                );
+
+        if ($site) {
+            $aliasQuery->where(
+                'site_id',
+                $site->id
+            );
+        }
+
+        $alias =
+            $aliasQuery->firstOrFail();
+
+        return Article::query()
+            ->published()
+            ->whereKey(
+                $alias->article_id
+            )
+            ->when(
+                $site,
+                fn ($q) =>
+                    $q->where(
+                        'site_id',
+                        $site->id
+                    )
+            )
+            ->firstOrFail();
+    }
+
+    private function recordChapterView(
+        ArticleChapter $chapter
+    ): void {
+        $sessionKey =
+            'chapter_viewed_at_'
+            . $chapter->id;
+
+        $lastViewedAt =
+            session()->get(
+                $sessionKey
+            );
+
+        if ($lastViewedAt) {
+            try {
+                $last =
+                    Carbon::parse(
+                        $lastViewedAt
+                    );
+
+                if (
+                    $last->diffInMinutes(
+                        now()
+                    ) < 30
+                ) {
+                    return;
+                }
+            } catch (Throwable $e) {
+                // Count normally.
+            }
+        }
+
+        $chapter->increment(
+            'views'
+        );
+
+        session()->put(
+            $sessionKey,
+            now()->toIso8601String()
         );
     }
 
