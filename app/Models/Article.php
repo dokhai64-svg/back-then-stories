@@ -54,16 +54,39 @@ class Article extends Model
 
     public function author()
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(
+            User::class,
+            'user_id'
+        );
     }
 
     public function scopePublished($query)
     {
         return $query
-            ->where('status', 'published')
+            ->where(
+                'status',
+                'published'
+            )
             ->where(function ($q) {
-                $q->whereNull('published_at')
-                    ->orWhere('published_at', '<=', now());
+                $q->whereNull(
+                    'published_at'
+                )->orWhere(
+                    'published_at',
+                    '<=',
+                    now()
+                );
             });
+    }
+
+    /*
+     * Backward-compatible alias.
+     * Some existing public controllers still call Article::live().
+     * Keep it equivalent to the published scope.
+     */
+    public function scopeLive($query)
+    {
+        return $this->scopePublished(
+            $query
+        );
     }
 }
