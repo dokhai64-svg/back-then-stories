@@ -96,6 +96,7 @@
         'Artist': 'Nghệ sĩ',
         'Category': 'Danh mục',
         'Featured image': 'Ảnh đại diện',
+        'Featured image preview': 'Xem trước ảnh đại diện',
         'Featured story': 'Bài nổi bật',
         'Publish at': 'Thời gian đăng',
         'Created': 'Đã tạo',
