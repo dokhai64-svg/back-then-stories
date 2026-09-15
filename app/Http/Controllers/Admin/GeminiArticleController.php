@@ -16,15 +16,44 @@ class GeminiArticleController extends Controller
         $requestId = 'ai_' . Str::lower(Str::random(8));
 
         $data = $request->validate([
-            'mode' => ['nullable', 'in:seo,rewrite'],
-            'title' => ['required', 'string', 'max:255'],
-            'body' => ['required', 'string', 'max:60000'],
+            'mode' => [
+                'nullable',
+                'in:seo,rewrite,chapters',
+            ],
+            'title' => [
+                'required',
+                'string',
+                'max:255',
+            ],
+            'body' => [
+                'required',
+                'string',
+                'max:60000',
+            ],
+            'chapter_count' => [
+                'nullable',
+                'integer',
+                'min:2',
+                'max:8',
+            ],
         ]);
 
         if (($data['mode'] ?? 'seo') === 'rewrite') {
             return $this->rewriteBody(
                 (string) $data['title'],
                 (string) $data['body'],
+                $requestId
+            );
+        }
+
+        if (($data['mode'] ?? 'seo') === 'chapters') {
+            return $this->analyzeChapters(
+                (string) $data['title'],
+                (string) $data['body'],
+                (int) (
+                    $data['chapter_count']
+                    ?? 4
+                ),
                 $requestId
             );
         }
@@ -319,6 +348,393 @@ class GeminiArticleController extends Controller
                 . Str::limit($lastMessage, 240, ''),
             'request_id' => $requestId,
         ], 503);
+    }
+
+    private function analyzeChapters(
+        string $title,
+        string $sourceHtml,
+        int $chapterCount,
+        string $requestId
+    ) {
+        $apiKey = trim(
+            (string) config(
+                'gemini.api_key'
+            )
+        );
+
+        if ($apiKey === '') {
+            return response()->json([
+                'message' =>
+                    'GEMINI_API_KEY is not configured in Railway.',
+                'request_id' =>
+                    $requestId,
+            ], 500);
+        }
+
+        $sourceText =
+            trim(
+                preg_replace(
+                    '/\s+/u',
+                    ' ',
+                    strip_tags(
+                        $sourceHtml
+                    )
+                )
+            );
+
+        if (
+            mb_strlen(
+                $sourceText
+            ) < 350
+        ) {
+            return response()->json([
+                'message' =>
+                    'Add more source content before analyzing chapters.',
+                'request_id' =>
+                    $requestId,
+            ], 422);
+        }
+
+        $chapterCount =
+            max(
+                2,
+                min(
+                    8,
+                    $chapterCount
+                )
+            );
+
+        $sourceForPrompt =
+            Str::limit(
+                $sourceHtml,
+                42000,
+                ''
+            );
+
+        $prompt =
+            $this->chapterPrompt(
+                $chapterCount
+            )
+            . "\n\nARTICLE TITLE:\n"
+            . trim($title)
+            . "\n\nSOURCE ARTICLE HTML:\n"
+            . $sourceForPrompt;
+
+        $models = [
+            'gemini-flash-lite-latest',
+            'gemini-3.5-flash-lite',
+        ];
+
+        $startedAt =
+            microtime(true);
+
+        $hardBudgetSeconds =
+            25.0;
+
+        $lastMessage =
+            'Gemini is temporarily unavailable. Please try again.';
+
+        foreach ($models as $model) {
+            $remaining =
+                $hardBudgetSeconds
+                - (
+                    microtime(true)
+                    - $startedAt
+                );
+
+            if ($remaining < 5) {
+                break;
+            }
+
+            $timeout =
+                (int) max(
+                    5,
+                    min(
+                        14,
+                        floor(
+                            $remaining - 2
+                        )
+                    )
+                );
+
+            try {
+                $response =
+                    Http::withHeaders([
+                        'x-goog-api-key' =>
+                            $apiKey,
+                    ])
+                        ->acceptJson()
+                        ->asJson()
+                        ->connectTimeout(2)
+                        ->timeout($timeout)
+                        ->post(
+                            'https://generativelanguage.googleapis.com/v1beta/interactions',
+                            [
+                                'model' =>
+                                    $model,
+                                'input' =>
+                                    $prompt,
+                                'generation_config' => [
+                                    'thinking_level' =>
+                                        'low',
+                                    'max_output_tokens' =>
+                                        6000,
+                                ],
+                                'response_format' => [
+                                    'type' =>
+                                        'text',
+                                    'mime_type' =>
+                                        'application/json',
+                                    'schema' => [
+                                        'type' =>
+                                            'object',
+                                        'properties' => [
+                                            'intro_html' => [
+                                                'type' =>
+                                                    'string',
+                                            ],
+                                            'chapters' => [
+                                                'type' =>
+                                                    'array',
+                                                'items' => [
+                                                    'type' =>
+                                                        'object',
+                                                    'properties' => [
+                                                        'title' => [
+                                                            'type' =>
+                                                                'string',
+                                                        ],
+                                                        'body' => [
+                                                            'type' =>
+                                                                'string',
+                                                        ],
+                                                    ],
+                                                    'required' => [
+                                                        'title',
+                                                        'body',
+                                                    ],
+                                                ],
+                                            ],
+                                        ],
+                                        'required' => [
+                                            'intro_html',
+                                            'chapters',
+                                        ],
+                                    ],
+                                ],
+                            ]
+                        );
+
+            } catch (ConnectionException $e) {
+                $lastMessage =
+                    'Connection timeout while analyzing chapters.';
+
+                continue;
+
+            } catch (Throwable $e) {
+                $lastMessage =
+                    'Gemini chapter analysis request failed.';
+
+                logger()->warning(
+                    'Gemini chapter analysis exception',
+                    [
+                        'request_id' =>
+                            $requestId,
+                        'model' =>
+                            $model,
+                        'message' =>
+                            $e->getMessage(),
+                    ]
+                );
+
+                continue;
+            }
+
+            if (!$response->successful()) {
+                $lastMessage =
+                    trim(
+                        (string) (
+                            $response->json(
+                                'error.message'
+                            )
+                            ?: 'Gemini chapter analysis failed.'
+                        )
+                    );
+
+                continue;
+            }
+
+            $outputText =
+                $this->extractOutputText(
+                    $response->json()
+                );
+
+            $outputText =
+                preg_replace(
+                    '/^```(?:json)?\s*|\s*```$/i',
+                    '',
+                    $outputText
+                );
+
+            $result =
+                json_decode(
+                    trim(
+                        (string) $outputText
+                    ),
+                    true
+                );
+
+            if (
+                !is_array($result)
+                || !is_array(
+                    $result['chapters']
+                    ?? null
+                )
+            ) {
+                $lastMessage =
+                    'Gemini returned invalid chapter JSON.';
+
+                continue;
+            }
+
+            $chapters = [];
+
+            foreach (
+                array_slice(
+                    $result['chapters'],
+                    0,
+                    8
+                )
+                as $chapter
+            ) {
+                if (!is_array($chapter)) {
+                    continue;
+                }
+
+                $chapterTitle =
+                    $this->cleanText(
+                        $chapter['title']
+                        ?? ''
+                    );
+
+                $chapterBody =
+                    $this->sanitizeRewrittenHtml(
+                        (string) (
+                            $chapter['body']
+                            ?? ''
+                        )
+                    );
+
+                if (
+                    mb_strlen(
+                        strip_tags(
+                            $chapterBody
+                        )
+                    ) < 80
+                ) {
+                    continue;
+                }
+
+                $chapters[] = [
+                    'title' =>
+                        Str::limit(
+                            $chapterTitle,
+                            180,
+                            ''
+                        ),
+                    'body' =>
+                        $chapterBody,
+                ];
+            }
+
+            if (count($chapters) < 2) {
+                $lastMessage =
+                    'Gemini produced too few usable chapters.';
+
+                continue;
+            }
+
+            $intro =
+                $this->sanitizeRewrittenHtml(
+                    (string) (
+                        $result['intro_html']
+                        ?? ''
+                    )
+                );
+
+            return response()->json([
+                'intro_html' =>
+                    $intro,
+                'chapters' =>
+                    $chapters,
+                'ai_model' =>
+                    $model,
+                'request_id' =>
+                    $requestId,
+            ]);
+        }
+
+        return response()->json([
+            'message' =>
+                'AI could not finish chapter analysis within the server time limit. '
+                . Str::limit(
+                    $lastMessage,
+                    220,
+                    ''
+                ),
+            'request_id' =>
+                $requestId,
+        ], 503);
+    }
+
+    private function chapterPrompt(
+        int $chapterCount
+    ): string {
+        return <<<PROMPT
+You are an editorial story-structure assistant for an American-English classic music and entertainment history website.
+
+Your job is to turn the supplied article into a strong multi-page reading experience.
+
+Create exactly {$chapterCount} meaningful chapters.
+
+FACT SAFETY
+- Use only facts supported by the source.
+- Do not invent quotes, dates, motives, awards, chart positions, relationships, or events.
+- Preserve names, song titles, places, dates, and factual identifiers accurately.
+- If a claim is uncertain from the source, omit it.
+
+STRUCTURE
+- Create a short INTRO / DESCRIPTION that sets up the story without giving away every payoff.
+- Then divide the substantive story into {$chapterCount} chapters.
+- Each chapter must advance the story. Do not repeat the intro.
+- Avoid thin pages. Balance the available source material across the chapters.
+- Give every chapter a specific curiosity-driven title.
+- Keep chronology and cause/effect clear when the source supports it.
+- End chapters naturally; do not add fake cliffhangers.
+
+WRITING
+- Natural contemporary American English.
+- Rewrite sentences independently rather than copying complete source sentences.
+- No generic AI phrasing.
+- No hashtags.
+- No calls to action.
+- No source-site mentions.
+- No invented commentary.
+
+HTML
+- intro_html and each chapter body must contain clean article HTML.
+- Use <p> for paragraphs.
+- Use <h2>, <h3>, <blockquote>, <ul>, <ol>, <li>, <strong>, and <em> only when useful.
+- Never output <html>, <head>, <body>, <script>, style tags, or markdown.
+
+Return JSON only:
+{
+  "intro_html": "...",
+  "chapters": [
+    {"title": "...", "body": "..."}
+  ]
+}
+PROMPT;
     }
 
     private function rewriteBody(
