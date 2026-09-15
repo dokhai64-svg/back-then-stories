@@ -2178,33 +2178,29 @@ const addAliasBtn =
     );
 
 const aliasGenerateUrl =
-    @json(
+    {!! json_encode(
         route(
             'admin.articles.aliases.generate',
             $article
         )
-    );
+    ) !!};
 
 const aliasStoreUrl =
-    @json(
+    {!! json_encode(
         route(
             'admin.articles.aliases.store',
             $article
         )
-    );
+    ) !!};
 
 const aliasDestroyTemplate =
-    @json(
-        route(
-            'admin.articles.aliases.destroy',
-            [
-                'article' =>
-                    $article,
-                'alias' =>
-                    '__ALIAS__',
-            ]
+    {!! json_encode(
+        url(
+            '/admin/articles/'
+            . $article->id
+            . '/aliases/__ALIAS__'
         )
-    );
+    ) !!};
 
 const chapterListAdmin =
     document.getElementById(
@@ -2222,46 +2218,38 @@ const addChapterBtn =
     );
 
 const chapterStoreUrl =
-    @json(
+    {!! json_encode(
         route(
             'admin.articles.chapters.store',
             $article
         )
-    );
+    ) !!};
 
 const chapterUpdateTemplate =
-    @json(
-        route(
-            'admin.articles.chapters.update',
-            [
-                'article' =>
-                    $article,
-                'chapter' =>
-                    '__CHAPTER__',
-            ]
+    {!! json_encode(
+        url(
+            '/admin/articles/'
+            . $article->id
+            . '/chapters/__CHAPTER__'
         )
-    );
+    ) !!};
 
 const chapterDestroyTemplate =
-    @json(
-        route(
-            'admin.articles.chapters.destroy',
-            [
-                'article' =>
-                    $article,
-                'chapter' =>
-                    '__CHAPTER__',
-            ]
+    {!! json_encode(
+        url(
+            '/admin/articles/'
+            . $article->id
+            . '/chapters/__CHAPTER__'
         )
-    );
+    ) !!};
 
 const chapterPublicBase =
-    @json(
+    {!! json_encode(
         route(
             'articles.show',
             $article->slug
         )
-    );
+    ) !!};
 
 async function uiCopyText(text) {
     if (
