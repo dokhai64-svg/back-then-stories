@@ -954,6 +954,13 @@
                         value=""
                     >
 
+                    <input
+                        type="file"
+                        id="chapterImageInput"
+                        accept="image/*"
+                        style="display:none"
+                    >
+
                     <div
                         id="chapterListAdmin"
                         class="chapter-list-admin"
@@ -1039,6 +1046,9 @@
                                             <button type="button" data-chapter-cmd="insertOrderedList">1. List</button>
                                             <button type="button" data-chapter-cmd="formatBlock" data-chapter-val="blockquote">Quote</button>
                                             <button type="button" data-chapter-link>Link</button>
+                                            <button type="button" data-chapter-youtube>YouTube</button>
+                                            <button type="button" data-chapter-image>Choose Image</button>
+                                            <button type="button" data-chapter-image-url>Image URL</button>
                                         </div>
 
                                         <div
@@ -3026,6 +3036,9 @@ function createChapterCard(
         + '<button type="button" data-chapter-cmd="insertOrderedList">1. List</button>'
         + '<button type="button" data-chapter-cmd="formatBlock" data-chapter-val="blockquote">Quote</button>'
         + '<button type="button" data-chapter-link>Link</button>'
+        + '<button type="button" data-chapter-youtube>YouTube</button>'
+        + '<button type="button" data-chapter-image>Choose Image</button>'
+        + '<button type="button" data-chapter-image-url>Image URL</button>'
         + '</div>'
         + '<div class="chapter-rich-editor" contenteditable="true"></div>'
         + '</div>';
@@ -3075,6 +3088,193 @@ addChapterBtn?.addEventListener(
             count
             + ' chapter(s) added. Save the article when ready.'
         );
+    }
+);
+
+let activeChapterEditor = null;
+
+const chapterImageInput =
+    document.getElementById(
+        'chapterImageInput'
+    );
+
+function chapterYoutubeEmbedHtml(
+    rawUrl
+) {
+    const value =
+        (rawUrl || '').trim();
+
+    if (!value) {
+        return '';
+    }
+
+    let videoId = '';
+
+    try {
+        const url =
+            new URL(value);
+
+        if (
+            url.hostname.includes(
+                'youtu.be'
+            )
+        ) {
+            videoId =
+                url.pathname
+                    .replace(/^\/+/, '')
+                    .split('/')[0]
+                    .split('?')[0];
+        } else if (
+            url.hostname.includes(
+                'youtube.com'
+            )
+        ) {
+            videoId =
+                url.searchParams.get(
+                    'v'
+                ) || '';
+
+            if (!videoId) {
+                const match =
+                    url.pathname.match(
+                        /\/(?:shorts|embed)\/([^/?]+)/i
+                    );
+
+                if (match) {
+                    videoId =
+                        match[1];
+                }
+            }
+        }
+    } catch (e) {
+        const match =
+            value.match(
+                /(?:youtu\.be\/|v=|shorts\/|embed\/)([A-Za-z0-9_-]{6,})/
+            );
+
+        if (match) {
+            videoId =
+                match[1];
+        }
+    }
+
+    videoId =
+        videoId.replace(
+            /[^A-Za-z0-9_-]/g,
+            ''
+        );
+
+    if (!videoId) {
+        return '';
+    }
+
+    const src =
+        'https://www.youtube.com/embed/'
+        + videoId;
+
+    return (
+        '<div class="video-embed" '
+        + 'style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;margin:16px 0;">'
+        + '<iframe src="'
+        + src
+        + '" title="YouTube video" '
+        + 'style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" '
+        + 'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" '
+        + 'allowfullscreen loading="lazy"></iframe>'
+        + '</div><p><br></p>'
+    );
+}
+
+function insertHtmlAtChapterCursor(
+    editor,
+    html
+) {
+    if (!editor || !html) {
+        return;
+    }
+
+    editor.focus();
+
+    let inserted = false;
+
+    try {
+        inserted =
+            document.execCommand(
+                'insertHTML',
+                false,
+                html
+            );
+    } catch (e) {
+        inserted = false;
+    }
+
+    if (!inserted) {
+        editor.insertAdjacentHTML(
+            'beforeend',
+            html
+        );
+    }
+
+    syncChaptersJson();
+}
+
+function chapterImageHtml(src) {
+    return (
+        '<p><img src="'
+        + src
+        + '" alt="" '
+        + 'style="max-width:100%;height:auto;display:block;margin:16px auto;"></p>'
+        + '<p><br></p>'
+    );
+}
+
+chapterImageInput?.addEventListener(
+    'change',
+    function () {
+        const file =
+            this.files?.[0];
+
+        if (
+            !file
+            || !activeChapterEditor
+        ) {
+            this.value = '';
+            return;
+        }
+
+        if (
+            !file.type.startsWith(
+                'image/'
+            )
+        ) {
+            alert(
+                'Please choose an image file.'
+            );
+
+            this.value = '';
+            return;
+        }
+
+        const reader =
+            new FileReader();
+
+        reader.onload =
+            function () {
+                insertHtmlAtChapterCursor(
+                    activeChapterEditor,
+                    chapterImageHtml(
+                        reader.result
+                    )
+                );
+
+                activeChapterEditor =
+                    null;
+
+                chapterImageInput.value =
+                    '';
+            };
+
+        reader.readAsDataURL(file);
     }
 );
 
@@ -3177,6 +3377,108 @@ chapterListAdmin?.addEventListener(
             return;
         }
 
+        const youtubeButton =
+            event.target.closest(
+                '[data-chapter-youtube]'
+            );
+
+        if (youtubeButton) {
+            const editor =
+                card.querySelector(
+                    '.chapter-rich-editor'
+                );
+
+            const url =
+                prompt(
+                    'Paste YouTube URL'
+                );
+
+            if (!url) {
+                return;
+            }
+
+            const html =
+                chapterYoutubeEmbedHtml(
+                    url
+                );
+
+            if (!html) {
+                alert(
+                    'This does not look like a valid YouTube URL.'
+                );
+
+                return;
+            }
+
+            insertHtmlAtChapterCursor(
+                editor,
+                html
+            );
+
+            return;
+        }
+
+        const imageButton =
+            event.target.closest(
+                '[data-chapter-image]'
+            );
+
+        if (imageButton) {
+            activeChapterEditor =
+                card.querySelector(
+                    '.chapter-rich-editor'
+                );
+
+            chapterImageInput?.click();
+
+            return;
+        }
+
+        const imageUrlButton =
+            event.target.closest(
+                '[data-chapter-image-url]'
+            );
+
+        if (imageUrlButton) {
+            const editor =
+                card.querySelector(
+                    '.chapter-rich-editor'
+                );
+
+            const imageUrl =
+                prompt(
+                    'Paste image URL'
+                );
+
+            if (!imageUrl) {
+                return;
+            }
+
+            const cleanUrl =
+                imageUrl.trim();
+
+            if (
+                !/^https?:\/\//i.test(
+                    cleanUrl
+                )
+            ) {
+                alert(
+                    'Please enter a full image URL beginning with http:// or https://'
+                );
+
+                return;
+            }
+
+            insertHtmlAtChapterCursor(
+                editor,
+                chapterImageHtml(
+                    cleanUrl
+                )
+            );
+
+            return;
+        }
+
         const toolbarButton =
             event.target.closest(
                 '[data-chapter-cmd]'
@@ -3198,6 +3500,22 @@ chapterListAdmin?.addEventListener(
                     .chapterVal
                 || null
             );
+        }
+    }
+);
+
+chapterListAdmin?.addEventListener(
+    'input',
+    function (event) {
+        if (
+            event.target.closest(
+                '.chapter-title-input'
+            )
+            || event.target.closest(
+                '.chapter-rich-editor'
+            )
+        ) {
+            syncChaptersJson();
         }
     }
 );
