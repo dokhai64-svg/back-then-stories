@@ -19,6 +19,7 @@ class Article extends Model
         'title',
         'slug',
         'content_mode',
+        'skip_intro',
         'excerpt',
         'body',
         'featured_image',
@@ -35,6 +36,7 @@ class Article extends Model
     protected $casts = [
         'published_at' => 'datetime',
         'featured' => 'boolean',
+        'skip_intro' => 'boolean',
         'views' => 'integer',
     ];
 
