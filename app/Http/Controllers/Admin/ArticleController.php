@@ -9,6 +9,7 @@ use App\Models\{
     ArticleChapter,
     Artist,
     Category,
+    Media,
     Site
 };
 use App\Services\ImageUploadService;
@@ -229,8 +230,14 @@ class ArticleController extends Controller
             $data['imported_featured_image_url']
             ?? null;
 
+        $featuredMediaId =
+            isset($data['featured_media_id'])
+                ? (int) $data['featured_media_id']
+                : null;
+
         unset(
-            $data['imported_featured_image_url']
+            $data['imported_featured_image_url'],
+            $data['featured_media_id']
         );
 
         if ($request->hasFile('featured_image_file')) {
@@ -241,6 +248,17 @@ class ArticleController extends Controller
 
             $data['featured_image'] =
                 $upload['path'];
+
+        } elseif ($featuredMediaId) {
+            $copied =
+                $this->copyMediaAsFeaturedImage(
+                    $featuredMediaId
+                );
+
+            if ($copied) {
+                $data['featured_image'] =
+                    $copied;
+            }
 
         } elseif ($importedImageUrl) {
             $downloaded =
@@ -361,8 +379,14 @@ class ArticleController extends Controller
             $data['imported_featured_image_url']
             ?? null;
 
+        $featuredMediaId =
+            isset($data['featured_media_id'])
+                ? (int) $data['featured_media_id']
+                : null;
+
         unset(
-            $data['imported_featured_image_url']
+            $data['imported_featured_image_url'],
+            $data['featured_media_id']
         );
 
         if ($request->hasFile('featured_image_file')) {
@@ -380,6 +404,24 @@ class ArticleController extends Controller
 
             $data['featured_image'] =
                 $upload['path'];
+
+        } elseif ($featuredMediaId) {
+            $copied =
+                $this->copyMediaAsFeaturedImage(
+                    $featuredMediaId
+                );
+
+            if ($copied) {
+                if ($article->featured_image) {
+                    Storage::disk('public')
+                        ->delete(
+                            $article->featured_image
+                        );
+                }
+
+                $data['featured_image'] =
+                    $copied;
+            }
 
         } elseif ($importedImageUrl) {
             $downloaded =
@@ -786,6 +828,11 @@ class ArticleController extends Controller
                 'nullable',
                 'image',
                 'max:8192',
+            ],
+            'featured_media_id' => [
+                'nullable',
+                'integer',
+                'exists:media,id',
             ],
             'imported_featured_image_url' => [
                 'nullable',
@@ -1230,6 +1277,101 @@ class ArticleController extends Controller
                 'slug' =>
                     $slug,
             ]);
+        }
+    }
+
+    private function copyMediaAsFeaturedImage(
+        int $mediaId
+    ): ?string {
+        try {
+            $medium =
+                Media::query()
+                    ->find(
+                        $mediaId
+                    );
+
+            if (!$medium) {
+                return null;
+            }
+
+            $disk =
+                $medium->disk
+                ?: 'public';
+
+            if (
+                !Storage::disk($disk)
+                    ->exists(
+                        $medium->path
+                    )
+            ) {
+                return null;
+            }
+
+            $extension =
+                mb_strtolower(
+                    pathinfo(
+                        $medium->path,
+                        PATHINFO_EXTENSION
+                    )
+                );
+
+            if (
+                !in_array(
+                    $extension,
+                    [
+                        'jpg',
+                        'jpeg',
+                        'png',
+                        'webp',
+                        'gif',
+                        'avif',
+                    ],
+                    true
+                )
+            ) {
+                $extension = 'webp';
+            }
+
+            $contents =
+                Storage::disk($disk)
+                    ->get(
+                        $medium->path
+                    );
+
+            if (
+                $contents === ''
+                || strlen($contents)
+                    > 8 * 1024 * 1024
+            ) {
+                return null;
+            }
+
+            $path =
+                'articles/'
+                . Str::uuid()
+                . '.'
+                . $extension;
+
+            Storage::disk('public')
+                ->put(
+                    $path,
+                    $contents
+                );
+
+            return $path;
+
+        } catch (\Throwable $e) {
+            logger()->warning(
+                'Featured image media copy failed',
+                [
+                    'media_id' =>
+                        $mediaId,
+                    'message' =>
+                        $e->getMessage(),
+                ]
+            );
+
+            return null;
         }
     }
 
