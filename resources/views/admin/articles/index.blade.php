@@ -455,6 +455,14 @@
 
 
 /* ===== Article list visual upgrade ===== */
+.inline-clone-form{
+    display:inline-flex;
+    margin:0;
+}
+.inline-clone-form button{
+    font:inherit;
+}
+
 .thumb-button{
     position:relative;
     display:block;
@@ -1083,6 +1091,13 @@
                                                 $article
                                             )
                                             : '',
+                                    'clone_url' =>
+                                        !$isTrashed
+                                            ? route(
+                                                'admin.articles.clone',
+                                                $article
+                                            )
+                                            : '',
                                 ],
                                 JSON_UNESCAPED_SLASHES
                                 | JSON_UNESCAPED_UNICODE
@@ -1314,6 +1329,52 @@
                                         </div>
                                     </div>
 
+
+                                    {{-- Clone --}}
+                                    <form
+                                        method="post"
+                                        action="{{
+                                            route(
+                                                'admin.articles.clone',
+                                                $article
+                                            )
+                                        }}"
+                                        class="inline-clone-form"
+                                        onsubmit="return confirm('Clone this article as a new draft?')"
+                                    >
+                                        @csrf
+
+                                        <button
+                                            type="submit"
+                                            class="icon-action"
+                                            title="Clone article"
+                                            aria-label="Clone article"
+                                        >
+                                            <svg
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                            >
+                                                <rect
+                                                    x="9"
+                                                    y="9"
+                                                    width="11"
+                                                    height="11"
+                                                    rx="2"
+                                                ></rect>
+                                                <rect
+                                                    x="4"
+                                                    y="4"
+                                                    width="11"
+                                                    height="11"
+                                                    rx="2"
+                                                ></rect>
+                                            </svg>
+                                        </button>
+                                    </form>
 
                                     {{-- Edit --}}
                                     <a
@@ -1773,6 +1834,14 @@
                         Edit article
                     </a>
 
+                    <button
+                        type="button"
+                        id="quickPreviewClone"
+                        class="btn secondary"
+                    >
+                        Clone article
+                    </button>
+
                     <a
                         id="quickPreviewOpen"
                         class="btn secondary"
@@ -1803,6 +1872,15 @@
         </div>
     </div>
 </div>
+
+<form
+    id="quickPreviewCloneForm"
+    method="post"
+    action=""
+    style="display:none"
+>
+    @csrf
+</form>
 
 <div
     id="copyToast"
@@ -1954,6 +2032,16 @@ const quickPreviewEdit =
         'quickPreviewEdit'
     );
 
+const quickPreviewClone =
+    document.getElementById(
+        'quickPreviewClone'
+    );
+
+const quickPreviewCloneForm =
+    document.getElementById(
+        'quickPreviewCloneForm'
+    );
+
 const quickPreviewOpen =
     document.getElementById(
         'quickPreviewOpen'
@@ -2021,6 +2109,13 @@ function openArticleQuickPreview(data) {
 
     quickPreviewEdit.style.display =
         data.edit_url ? '' : 'none';
+
+    if (quickPreviewClone) {
+        quickPreviewClone.style.display =
+            data.clone_url
+                ? ''
+                : 'none';
+    }
 
     quickPreviewOpen.href =
         data.open_url
@@ -2143,6 +2238,34 @@ quickPreviewOverlay?.addEventListener(
         ) {
             closeArticleQuickPreview();
         }
+    }
+);
+
+quickPreviewClone?.addEventListener(
+    'click',
+    function () {
+        const cloneUrl =
+            quickPreviewData?.clone_url;
+
+        if (
+            !cloneUrl
+            || !quickPreviewCloneForm
+        ) {
+            return;
+        }
+
+        if (
+            !confirm(
+                'Clone this article as a new draft?'
+            )
+        ) {
+            return;
+        }
+
+        quickPreviewCloneForm.action =
+            cloneUrl;
+
+        quickPreviewCloneForm.submit();
     }
 );
 
