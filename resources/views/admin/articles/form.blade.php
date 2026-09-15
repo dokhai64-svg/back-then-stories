@@ -553,7 +553,7 @@
     <form
         method="post"
         action="{{ route('admin.articles.destroy', $article) }}"
-        onsubmit="return confirm('Delete this article?')"
+        onsubmit="return confirm('Move this article to Trash?')"
         style="margin-top:18px"
     >
 
