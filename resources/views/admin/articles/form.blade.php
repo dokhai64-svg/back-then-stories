@@ -236,6 +236,52 @@
                         accept="image/*"
                         hidden
                     >
+
+                    <div
+                        style="
+                            display:flex;
+                            align-items:center;
+                            gap:10px;
+                            flex-wrap:wrap;
+                            margin-top:12px;
+                        "
+                    >
+                        <button
+                            type="button"
+                            id="aiRewriteBtn"
+                            class="btn secondary"
+                            style="width:auto"
+                        >
+                            ✨ Rewrite Article Uniquely with AI
+                        </button>
+
+                        <button
+                            type="button"
+                            id="restoreRewriteBtn"
+                            class="btn secondary"
+                            style="width:auto;display:none"
+                        >
+                            ↶ Restore original
+                        </button>
+
+                        <span
+                            id="aiRewriteStatus"
+                            class="muted"
+                            style="font-size:12px"
+                        ></span>
+                    </div>
+
+                    <div
+                        class="muted"
+                        style="
+                            margin-top:7px;
+                            font-size:11px;
+                            line-height:1.45;
+                        "
+                    >
+                        Rewrites the full body in fresh wording while preserving supported facts.
+                        Nothing is saved until you click Save article.
+                    </div>
 </div>
 
             </div>
@@ -917,6 +963,223 @@ articleForm.addEventListener('submit', function () {
 });
 
 syncEditor();
+
+
+/* =========================
+   AI FULL ARTICLE REWRITE
+========================= */
+const aiRewriteBtn =
+    document.getElementById('aiRewriteBtn');
+
+const restoreRewriteBtn =
+    document.getElementById('restoreRewriteBtn');
+
+const aiRewriteStatus =
+    document.getElementById('aiRewriteStatus');
+
+let lastBodyBeforeAiRewrite = null;
+
+function setRewriteStatus(
+    message,
+    isError = false
+) {
+    aiRewriteStatus.textContent = message;
+
+    aiRewriteStatus.style.color =
+        isError ? '#b91c1c' : '#64748b';
+}
+
+restoreRewriteBtn.addEventListener(
+    'click',
+    function () {
+        if (lastBodyBeforeAiRewrite === null) {
+            return;
+        }
+
+        ed.innerHTML =
+            lastBodyBeforeAiRewrite;
+
+        syncEditor();
+
+        lastBodyBeforeAiRewrite = null;
+
+        restoreRewriteBtn.style.display =
+            'none';
+
+        setRewriteStatus(
+            'Original article body restored.'
+        );
+    }
+);
+
+aiRewriteBtn.addEventListener(
+    'click',
+    async function () {
+        const titleField =
+            articleForm.elements.namedItem(
+                'title'
+            );
+
+        const title =
+            (titleField?.value || '')
+                .trim();
+
+        const articleText =
+            (ed.innerText || '')
+                .trim();
+
+        const articleHtml =
+            ed.innerHTML.trim();
+
+        if (!title) {
+            alert(
+                'Please enter the article title first.'
+            );
+
+            titleField?.focus();
+
+            return;
+        }
+
+        if (articleText.length < 200) {
+            alert(
+                'Please add a fuller article body before rewriting.'
+            );
+
+            ed.focus();
+
+            return;
+        }
+
+        const confirmed = confirm(
+            'AI will replace the current Article body with a rewritten version. ' +
+            'You can restore the original before saving. Continue?'
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        const oldLabel =
+            aiRewriteBtn.textContent;
+
+        const originalHtml =
+            articleHtml;
+
+        aiRewriteBtn.disabled = true;
+
+        if (aiGenerateBtn) {
+            aiGenerateBtn.disabled = true;
+        }
+
+        aiRewriteBtn.textContent =
+            'Rewriting…';
+
+        setRewriteStatus(
+            'AI is rewriting the full article. Please wait…'
+        );
+
+        try {
+            const response = await fetch(
+                @json(route('admin.articles.ai-generate')),
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type':
+                            'application/json',
+                        'Accept':
+                            'application/json',
+                        'X-CSRF-TOKEN':
+                            @json(csrf_token())
+                    },
+                    body: JSON.stringify({
+                        mode: 'rewrite',
+                        title: title,
+                        body: articleHtml
+                    })
+                }
+            );
+
+            let data = {};
+
+            try {
+                data =
+                    await response.json();
+            } catch (e) {
+                data = {};
+            }
+
+            if (!response.ok) {
+                throw new Error(
+                    data.message ||
+                    'AI rewrite failed. Please try again.'
+                );
+            }
+
+            if (!data.rewritten_body) {
+                throw new Error(
+                    'AI returned an empty rewritten article.'
+                );
+            }
+
+            lastBodyBeforeAiRewrite =
+                originalHtml;
+
+            ed.innerHTML =
+                data.rewritten_body;
+
+            syncEditor();
+
+            restoreRewriteBtn.style.display =
+                'inline-flex';
+
+            const rewrittenWords =
+                (ed.innerText || '')
+                    .trim()
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .length;
+
+            setRewriteStatus(
+                'Rewrite complete — '
+                + rewrittenWords
+                + ' words. Review it, then generate Opening + SEO or save.'
+            );
+
+            ed.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+
+        } catch (error) {
+            console.error(error);
+
+            /*
+             * Never replace the body when the AI request fails.
+             */
+            ed.innerHTML =
+                originalHtml;
+
+            syncEditor();
+
+            setRewriteStatus(
+                error.message ||
+                'AI rewrite failed. Please try again.',
+                true
+            );
+
+        } finally {
+            aiRewriteBtn.disabled = false;
+
+            aiRewriteBtn.textContent =
+                oldLabel;
+
+            if (aiGenerateBtn) {
+                aiGenerateBtn.disabled = false;
+            }
+        }
+    }
+);
 
 
 /* =========================
