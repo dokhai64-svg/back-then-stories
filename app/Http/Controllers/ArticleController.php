@@ -2,8 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Article;
+use App\Models\{
+    Article,
+    ArticleDailyView
+};
 use App\Services\SiteResolver;
+use Illuminate\Support\Carbon;
+use Throwable;
 
 class ArticleController extends Controller
 {
@@ -36,11 +41,7 @@ class ArticleController extends Controller
         $article =
             $query->firstOrFail();
 
-        /*
-         * Simple page-view counter.
-         * It counts a successful public article request.
-         */
-        $article->increment('views');
+        $this->recordView($article);
 
         $related = Article::query()
             ->published()
@@ -69,6 +70,69 @@ class ArticleController extends Controller
                 'article',
                 'related'
             )
+        );
+    }
+
+    private function recordView(
+        Article $article
+    ): void {
+        /*
+         * Count one public view per browser session per article
+         * every 30 minutes. This stops simple refresh spam while
+         * keeping the counter lightweight and privacy-friendly.
+         */
+        $sessionKey =
+            'article_viewed_at_'
+            . $article->id;
+
+        $lastViewedAt =
+            session()->get($sessionKey);
+
+        if ($lastViewedAt) {
+            try {
+                $last =
+                    Carbon::parse(
+                        $lastViewedAt
+                    );
+
+                if (
+                    $last->diffInMinutes(
+                        now()
+                    ) < 30
+                ) {
+                    return;
+                }
+            } catch (Throwable $e) {
+                // Invalid old session value: count normally.
+            }
+        }
+
+        $article->increment('views');
+
+        /*
+         * Daily history powers the analytics dashboard.
+         * Tracking begins from the day this upgrade is deployed.
+         */
+        $daily =
+            ArticleDailyView::firstOrCreate(
+                [
+                    'article_id' =>
+                        $article->id,
+                    'view_date' =>
+                        now()->toDateString(),
+                ],
+                [
+                    'site_id' =>
+                        $article->site_id,
+                    'views' => 0,
+                ]
+            );
+
+        $daily->increment('views');
+
+        session()->put(
+            $sessionKey,
+            now()->toIso8601String()
         );
     }
 }
