@@ -37,6 +37,26 @@ class ArticleController extends Controller
 
         $this->recordView($article);
 
+        if (
+            $article->content_mode === 'chapter'
+            && $article->skip_intro
+            && $article->chapters->count()
+        ) {
+            $firstChapter =
+                $article->chapters->first();
+
+            return redirect()->route(
+                'articles.chapter',
+                [
+                    'slug' =>
+                        $article->slug,
+                    'chapterNumber' =>
+                        $firstChapter
+                            ->chapter_number,
+                ]
+            );
+        }
+
         /*
          * Build a useful recommendation set without repeating
          * the article currently being read.
