@@ -453,6 +453,221 @@
     background:#edf1f5;
 }
 
+
+/* ===== Article list visual upgrade ===== */
+.thumb-button{
+    position:relative;
+    display:block;
+    width:58px;
+    height:58px;
+    padding:0;
+    border:0;
+    border-radius:10px;
+    background:transparent;
+    cursor:pointer;
+}
+.thumb-button:focus-visible{
+    outline:2px solid #2563eb;
+    outline-offset:2px;
+}
+.thumb-overlay{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:10px;
+    background:rgba(15,23,42,.54);
+    color:#fff;
+    opacity:0;
+    transition:opacity .14s ease;
+    font-size:9px;
+    font-weight:800;
+}
+.thumb-button:hover .thumb-overlay,
+.thumb-button:focus-visible .thumb-overlay{
+    opacity:1;
+}
+.row-title-link{
+    color:inherit;
+    text-decoration:none;
+}
+.row-title-link:hover{
+    text-decoration:underline;
+}
+.row-meta-badges{
+    display:flex;
+    align-items:center;
+    gap:5px;
+    flex-wrap:wrap;
+    margin-top:6px;
+}
+.row-mini-badge{
+    display:inline-flex;
+    align-items:center;
+    min-height:20px;
+    padding:0 6px;
+    border-radius:999px;
+    background:#f1f5f9;
+    color:#64748b;
+    font-size:9px;
+    font-weight:750;
+}
+.row-mini-badge.chapter{
+    background:#eef2ff;
+    color:#4338ca;
+}
+.row-mini-badge.urls{
+    background:#eff6ff;
+    color:#1d4ed8;
+}
+.quick-preview-overlay{
+    position:fixed;
+    inset:0;
+    z-index:10000;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    padding:22px;
+    background:rgba(15,23,42,.64);
+}
+.quick-preview-overlay.open{
+    display:flex;
+}
+.quick-preview-dialog{
+    width:min(900px,96vw);
+    max-height:90vh;
+    overflow:auto;
+    border-radius:16px;
+    background:#fff;
+    box-shadow:0 26px 80px rgba(0,0,0,.28);
+}
+.quick-preview-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:14px 16px;
+    border-bottom:1px solid #e5e7eb;
+}
+.quick-preview-head h3{
+    margin:0;
+    font-size:16px;
+}
+.quick-preview-close{
+    width:34px;
+    height:34px;
+    border:1px solid #d1d5db;
+    border-radius:8px;
+    background:#fff;
+    cursor:pointer;
+    font-size:20px;
+    line-height:1;
+}
+.quick-preview-body{
+    display:grid;
+    grid-template-columns:minmax(250px,.9fr) minmax(300px,1.1fr);
+    gap:18px;
+    padding:18px;
+}
+.quick-preview-image-wrap{
+    overflow:hidden;
+    border:1px solid #e5e7eb;
+    border-radius:12px;
+    background:#f8fafc;
+}
+.quick-preview-image{
+    width:100%;
+    aspect-ratio:16/10;
+    object-fit:cover;
+    display:block;
+}
+.quick-preview-no-image{
+    min-height:250px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#94a3b8;
+    font-size:12px;
+    font-weight:800;
+}
+.quick-preview-image-actions{
+    display:flex;
+    gap:7px;
+    flex-wrap:wrap;
+    padding:10px;
+    border-top:1px solid #e5e7eb;
+    background:#fff;
+}
+.quick-preview-title{
+    margin:0;
+    color:#0f172a;
+    font-size:21px;
+    line-height:1.3;
+}
+.quick-preview-meta{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+    margin-top:16px;
+}
+.quick-preview-meta-item{
+    padding:10px;
+    border:1px solid #e5e7eb;
+    border-radius:9px;
+    background:#f8fafc;
+}
+.quick-preview-meta-label{
+    color:#94a3b8;
+    font-size:9px;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+}
+.quick-preview-meta-value{
+    margin-top:4px;
+    color:#334155;
+    font-size:12px;
+    font-weight:700;
+}
+.quick-preview-url-box{
+    margin-top:14px;
+    padding:10px;
+    border:1px solid #dbe3ec;
+    border-radius:9px;
+    background:#fff;
+}
+.quick-preview-url-label{
+    color:#64748b;
+    font-size:9px;
+    font-weight:800;
+    text-transform:uppercase;
+}
+.quick-preview-url{
+    margin-top:5px;
+    color:#334155;
+    font-size:11px;
+    line-height:1.45;
+    word-break:break-all;
+}
+.quick-preview-actions{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-top:14px;
+}
+.quick-preview-actions .btn{
+    width:auto;
+}
+@media(max-width:760px){
+    .quick-preview-body{
+        grid-template-columns:1fr;
+    }
+    .quick-preview-meta{
+        grid-template-columns:1fr;
+    }
+}
+
 </style>
 
 <div class="article-manager-head">
@@ -778,31 +993,158 @@
                     <tr>
 
                         <td>
-                            @if($article->featured_image)
-                                <img
-                                    class="thumb"
-                                    src="{{
-                                        asset(
-                                            'storage/' .
-                                            $article->featured_image
-                                        )
-                                    }}"
-                                    alt=""
-                                >
-                            @else
-                                <div class="thumb-empty">
-                                    NO IMG
-                                </div>
-                            @endif
+                            <button
+                                type="button"
+                                class="thumb-button js-article-quick-preview"
+                                data-preview-id="article-preview-data-{{ $article->id }}"
+                                title="Quick preview"
+                                aria-label="Quick preview"
+                            >
+                                @if($article->featured_image)
+                                    <img
+                                        class="thumb"
+                                        src="{{
+                                            asset(
+                                                'storage/' .
+                                                $article->featured_image
+                                            )
+                                        }}"
+                                        alt=""
+                                        loading="lazy"
+                                    >
+                                @else
+                                    <div class="thumb-empty">
+                                        NO IMG
+                                    </div>
+                                @endif
+
+                                <span class="thumb-overlay">
+                                    Preview
+                                </span>
+                            </button>
+
+                            <script
+                                type="application/json"
+                                id="article-preview-data-{{ $article->id }}"
+                            >{!! json_encode(
+                                [
+                                    'title' =>
+                                        $article->title,
+                                    'status' =>
+                                        $isTrashed
+                                            ? 'trashed'
+                                            : $article->status,
+                                    'mode' =>
+                                        $article->content_mode
+                                        ?? 'normal',
+                                    'chapters_count' =>
+                                        (int) (
+                                            $article->chapters_count
+                                            ?? 0
+                                        ),
+                                    'views' =>
+                                        number_format(
+                                            (int) $article->views
+                                        ),
+                                    'published' =>
+                                        $article->published_at
+                                            ? $article
+                                                ->published_at
+                                                ->format(
+                                                    'M d, Y'
+                                                )
+                                            : '—',
+                                    'category' =>
+                                        $article->category?->name
+                                        ?? 'No category',
+                                    'site' =>
+                                        $article->site?->name
+                                        ?? '—',
+                                    'image' =>
+                                        $article->featured_image
+                                            ? asset(
+                                                'storage/'
+                                                . $article
+                                                    ->featured_image
+                                            )
+                                            : '',
+                                    'primary_url' =>
+                                        $publicUrl,
+                                    'all_urls' =>
+                                        $allPublicUrls
+                                            ->values()
+                                            ->all(),
+                                    'open_url' =>
+                                        $openUrl,
+                                    'edit_url' =>
+                                        !$isTrashed
+                                            ? route(
+                                                'admin.articles.edit',
+                                                $article
+                                            )
+                                            : '',
+                                ],
+                                JSON_UNESCAPED_SLASHES
+                                | JSON_UNESCAPED_UNICODE
+                                | JSON_HEX_TAG
+                                | JSON_HEX_APOS
+                                | JSON_HEX_AMP
+                                | JSON_HEX_QUOT
+                            ) !!}</script>
                         </td>
 
                         <td>
                             <div class="row-title">
-                                {{ $article->title }}
+                                @if(!$isTrashed)
+                                    <a
+                                        class="row-title-link"
+                                        href="{{
+                                            route(
+                                                'admin.articles.edit',
+                                                $article
+                                            )
+                                        }}"
+                                        title="Edit article"
+                                    >
+                                        {{ $article->title }}
+                                    </a>
+                                @else
+                                    {{ $article->title }}
+                                @endif
                             </div>
 
                             <div class="row-slug">
                                 /story/{{ $article->slug }}
+                            </div>
+
+                            <div class="row-meta-badges">
+                                @if(
+                                    ($article->content_mode ?? 'normal')
+                                    === 'chapter'
+                                )
+                                    <span class="row-mini-badge chapter">
+                                        Chapter
+                                        ·
+                                        {{ $article->chapters_count ?? 0 }}
+                                    </span>
+                                @else
+                                    <span class="row-mini-badge">
+                                        Normal
+                                    </span>
+                                @endif
+
+                                @if($aliasUrls->count())
+                                    <span class="row-mini-badge urls">
+                                        {{ $allPublicUrls->count() }}
+                                        URLs
+                                    </span>
+                                @endif
+
+                                @if($article->featured_image)
+                                    <span class="row-mini-badge">
+                                        Featured image
+                                    </span>
+                                @endif
                             </div>
                         </td>
 
@@ -1272,6 +1614,197 @@
 </div>
 
 <div
+    id="articleQuickPreviewOverlay"
+    class="quick-preview-overlay"
+    aria-hidden="true"
+>
+    <div
+        class="quick-preview-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="articleQuickPreviewHeading"
+    >
+        <div class="quick-preview-head">
+            <h3 id="articleQuickPreviewHeading">
+                Quick article preview
+            </h3>
+
+            <button
+                type="button"
+                id="articleQuickPreviewClose"
+                class="quick-preview-close"
+                aria-label="Close"
+            >
+                ×
+            </button>
+        </div>
+
+        <div class="quick-preview-body">
+            <div>
+                <div
+                    id="quickPreviewImageWrap"
+                    class="quick-preview-image-wrap"
+                >
+                    <img
+                        id="quickPreviewImage"
+                        class="quick-preview-image"
+                        src=""
+                        alt=""
+                    >
+
+                    <div
+                        id="quickPreviewNoImage"
+                        class="quick-preview-no-image"
+                        style="display:none"
+                    >
+                        No featured image
+                    </div>
+
+                    <div
+                        id="quickPreviewImageActions"
+                        class="quick-preview-image-actions"
+                    >
+                        <button
+                            type="button"
+                            id="quickPreviewCopyImage"
+                            class="btn secondary"
+                        >
+                            Copy image URL
+                        </button>
+
+                        <a
+                            id="quickPreviewOpenImage"
+                            class="btn secondary"
+                            href="#"
+                            target="_blank"
+                            rel="noopener"
+                        >
+                            Open image ↗
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h2
+                    id="quickPreviewTitle"
+                    class="quick-preview-title"
+                ></h2>
+
+                <div class="quick-preview-meta">
+                    <div class="quick-preview-meta-item">
+                        <div class="quick-preview-meta-label">
+                            Status
+                        </div>
+                        <div
+                            id="quickPreviewStatus"
+                            class="quick-preview-meta-value"
+                        ></div>
+                    </div>
+
+                    <div class="quick-preview-meta-item">
+                        <div class="quick-preview-meta-label">
+                            Content mode
+                        </div>
+                        <div
+                            id="quickPreviewMode"
+                            class="quick-preview-meta-value"
+                        ></div>
+                    </div>
+
+                    <div class="quick-preview-meta-item">
+                        <div class="quick-preview-meta-label">
+                            Views
+                        </div>
+                        <div
+                            id="quickPreviewViews"
+                            class="quick-preview-meta-value"
+                        ></div>
+                    </div>
+
+                    <div class="quick-preview-meta-item">
+                        <div class="quick-preview-meta-label">
+                            Published
+                        </div>
+                        <div
+                            id="quickPreviewPublished"
+                            class="quick-preview-meta-value"
+                        ></div>
+                    </div>
+
+                    <div class="quick-preview-meta-item">
+                        <div class="quick-preview-meta-label">
+                            Category
+                        </div>
+                        <div
+                            id="quickPreviewCategory"
+                            class="quick-preview-meta-value"
+                        ></div>
+                    </div>
+
+                    <div class="quick-preview-meta-item">
+                        <div class="quick-preview-meta-label">
+                            Site
+                        </div>
+                        <div
+                            id="quickPreviewSite"
+                            class="quick-preview-meta-value"
+                        ></div>
+                    </div>
+                </div>
+
+                <div class="quick-preview-url-box">
+                    <div class="quick-preview-url-label">
+                        Primary URL
+                    </div>
+
+                    <div
+                        id="quickPreviewPrimaryUrl"
+                        class="quick-preview-url"
+                    ></div>
+                </div>
+
+                <div class="quick-preview-actions">
+                    <a
+                        id="quickPreviewEdit"
+                        class="btn"
+                        href="#"
+                    >
+                        Edit article
+                    </a>
+
+                    <a
+                        id="quickPreviewOpen"
+                        class="btn secondary"
+                        href="#"
+                        target="_blank"
+                        rel="noopener"
+                    >
+                        Open page ↗
+                    </a>
+
+                    <button
+                        type="button"
+                        id="quickPreviewCopyPrimary"
+                        class="btn secondary"
+                    >
+                        Copy primary URL
+                    </button>
+
+                    <button
+                        type="button"
+                        id="quickPreviewCopyAll"
+                        class="btn secondary"
+                    >
+                        Copy all URLs
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div
     id="copyToast"
     class="copy-toast"
 >
@@ -1339,6 +1872,356 @@ async function copyText(value) {
 
     textarea.remove();
 }
+
+/* ===== Quick article preview ===== */
+const quickPreviewOverlay =
+    document.getElementById(
+        'articleQuickPreviewOverlay'
+    );
+
+const quickPreviewClose =
+    document.getElementById(
+        'articleQuickPreviewClose'
+    );
+
+const quickPreviewImage =
+    document.getElementById(
+        'quickPreviewImage'
+    );
+
+const quickPreviewNoImage =
+    document.getElementById(
+        'quickPreviewNoImage'
+    );
+
+const quickPreviewImageActions =
+    document.getElementById(
+        'quickPreviewImageActions'
+    );
+
+const quickPreviewOpenImage =
+    document.getElementById(
+        'quickPreviewOpenImage'
+    );
+
+const quickPreviewCopyImage =
+    document.getElementById(
+        'quickPreviewCopyImage'
+    );
+
+const quickPreviewTitle =
+    document.getElementById(
+        'quickPreviewTitle'
+    );
+
+const quickPreviewStatus =
+    document.getElementById(
+        'quickPreviewStatus'
+    );
+
+const quickPreviewMode =
+    document.getElementById(
+        'quickPreviewMode'
+    );
+
+const quickPreviewViews =
+    document.getElementById(
+        'quickPreviewViews'
+    );
+
+const quickPreviewPublished =
+    document.getElementById(
+        'quickPreviewPublished'
+    );
+
+const quickPreviewCategory =
+    document.getElementById(
+        'quickPreviewCategory'
+    );
+
+const quickPreviewSite =
+    document.getElementById(
+        'quickPreviewSite'
+    );
+
+const quickPreviewPrimaryUrl =
+    document.getElementById(
+        'quickPreviewPrimaryUrl'
+    );
+
+const quickPreviewEdit =
+    document.getElementById(
+        'quickPreviewEdit'
+    );
+
+const quickPreviewOpen =
+    document.getElementById(
+        'quickPreviewOpen'
+    );
+
+const quickPreviewCopyPrimary =
+    document.getElementById(
+        'quickPreviewCopyPrimary'
+    );
+
+const quickPreviewCopyAll =
+    document.getElementById(
+        'quickPreviewCopyAll'
+    );
+
+let quickPreviewData = null;
+
+function previewModeText(data) {
+    if (data.mode === 'chapter') {
+        const count =
+            Number(
+                data.chapters_count
+                || 0
+            );
+
+        return count > 0
+            ? 'Chapter · '
+                + count
+                + ' chapters'
+            : 'Chapter';
+    }
+
+    return 'Normal';
+}
+
+function openArticleQuickPreview(data) {
+    quickPreviewData = data;
+
+    quickPreviewTitle.textContent =
+        data.title || '';
+
+    quickPreviewStatus.textContent =
+        data.status || '—';
+
+    quickPreviewMode.textContent =
+        previewModeText(data);
+
+    quickPreviewViews.textContent =
+        data.views || '0';
+
+    quickPreviewPublished.textContent =
+        data.published || '—';
+
+    quickPreviewCategory.textContent =
+        data.category || '—';
+
+    quickPreviewSite.textContent =
+        data.site || '—';
+
+    quickPreviewPrimaryUrl.textContent =
+        data.primary_url || '';
+
+    quickPreviewEdit.href =
+        data.edit_url || '#';
+
+    quickPreviewEdit.style.display =
+        data.edit_url ? '' : 'none';
+
+    quickPreviewOpen.href =
+        data.open_url
+        || data.primary_url
+        || '#';
+
+    const hasImage =
+        !!data.image;
+
+    quickPreviewImage.style.display =
+        hasImage ? '' : 'none';
+
+    quickPreviewNoImage.style.display =
+        hasImage ? 'none' : '';
+
+    quickPreviewImageActions.style.display =
+        hasImage ? '' : 'none';
+
+    if (hasImage) {
+        quickPreviewImage.src =
+            data.image;
+
+        quickPreviewOpenImage.href =
+            data.image;
+    } else {
+        quickPreviewImage.removeAttribute(
+            'src'
+        );
+
+        quickPreviewOpenImage.href =
+            '#';
+    }
+
+    const urlCount =
+        Array.isArray(
+            data.all_urls
+        )
+            ? data.all_urls.length
+            : 0;
+
+    quickPreviewCopyAll.style.display =
+        urlCount > 1
+            ? ''
+            : 'none';
+
+    quickPreviewOverlay
+        ?.classList
+        .add('open');
+
+    quickPreviewOverlay
+        ?.setAttribute(
+            'aria-hidden',
+            'false'
+        );
+}
+
+function closeArticleQuickPreview() {
+    quickPreviewOverlay
+        ?.classList
+        .remove('open');
+
+    quickPreviewOverlay
+        ?.setAttribute(
+            'aria-hidden',
+            'true'
+        );
+
+    quickPreviewData = null;
+}
+
+document
+    .querySelectorAll(
+        '.js-article-quick-preview'
+    )
+    .forEach(
+        function (button) {
+            button.addEventListener(
+                'click',
+                function () {
+                    const dataEl =
+                        document.getElementById(
+                            this.dataset
+                                .previewId
+                        );
+
+                    if (!dataEl) {
+                        return;
+                    }
+
+                    try {
+                        openArticleQuickPreview(
+                            JSON.parse(
+                                dataEl.textContent
+                                || '{}'
+                            )
+                        );
+                    } catch (error) {
+                        console.error(error);
+
+                        showToast(
+                            'Could not open preview'
+                        );
+                    }
+                }
+            );
+        }
+    );
+
+quickPreviewClose?.addEventListener(
+    'click',
+    closeArticleQuickPreview
+);
+
+quickPreviewOverlay?.addEventListener(
+    'click',
+    function (event) {
+        if (
+            event.target
+            === quickPreviewOverlay
+        ) {
+            closeArticleQuickPreview();
+        }
+    }
+);
+
+quickPreviewCopyPrimary?.addEventListener(
+    'click',
+    async function () {
+        if (
+            !quickPreviewData
+            || !quickPreviewData.primary_url
+        ) {
+            return;
+        }
+
+        await copyText(
+            quickPreviewData.primary_url
+        );
+
+        showToast(
+            'Primary URL copied'
+        );
+    }
+);
+
+quickPreviewCopyAll?.addEventListener(
+    'click',
+    async function () {
+        const urls =
+            quickPreviewData?.all_urls;
+
+        if (
+            !Array.isArray(urls)
+            || !urls.length
+        ) {
+            return;
+        }
+
+        await copyText(
+            urls.join('\n')
+        );
+
+        showToast(
+            urls.length
+            + ' URLs copied'
+        );
+    }
+);
+
+quickPreviewCopyImage?.addEventListener(
+    'click',
+    async function () {
+        const image =
+            quickPreviewData?.image;
+
+        if (!image) {
+            return;
+        }
+
+        await copyText(image);
+
+        showToast(
+            'Image URL copied'
+        );
+    }
+);
+
+document.addEventListener(
+    'keydown',
+    function (event) {
+        if (
+            event.key === 'Escape'
+            && quickPreviewOverlay
+                ?.classList
+                .contains('open')
+        ) {
+            closeArticleQuickPreview();
+        }
+    }
+);
+
 
 function closeUrlCopyMenus(
     exceptId = null
