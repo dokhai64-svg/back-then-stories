@@ -232,6 +232,16 @@ Route::prefix('admin')
                     'articles.preview'
                 );
 
+                Route::post(
+                    'articles/{article}/clone',
+                    [
+                        AdminArticles::class,
+                        'cloneArticle',
+                    ]
+                )->name(
+                    'articles.clone'
+                );
+
                 Route::resource(
                     'articles',
                     AdminArticles::class
