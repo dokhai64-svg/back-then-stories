@@ -134,6 +134,111 @@
 
             <div class="card">
 
+                <div
+                    class="field"
+                    style="
+                        padding:14px;
+                        border:1px solid #dbe3ec;
+                        border-radius:12px;
+                        background:#f8fafc;
+                        margin-bottom:18px;
+                    "
+                >
+                    <label>
+                        Import from URL
+                        <span class="muted">
+                            (public article pages only)
+                        </span>
+                    </label>
+
+                    <div
+                        style="
+                            display:flex;
+                            gap:8px;
+                            align-items:center;
+                            flex-wrap:wrap;
+                        "
+                    >
+                        <input
+                            type="url"
+                            id="articleImportUrl"
+                            placeholder="https://example.com/article"
+                            style="
+                                flex:1 1 420px;
+                                min-width:220px;
+                            "
+                        >
+
+                        <button
+                            type="button"
+                            id="articleImportBtn"
+                            class="btn secondary"
+                            style="width:auto"
+                        >
+                            ↓ Import article
+                        </button>
+                    </div>
+
+                    <div
+                        style="
+                            display:flex;
+                            flex-wrap:wrap;
+                            gap:14px;
+                            margin-top:10px;
+                            font-size:12px;
+                        "
+                    >
+                        <label style="display:flex;gap:6px;align-items:center">
+                            <input
+                                type="checkbox"
+                                id="importFeaturedImage"
+                                checked
+                                style="width:auto"
+                            >
+                            Featured image
+                        </label>
+
+                        <label style="display:flex;gap:6px;align-items:center">
+                            <input
+                                type="checkbox"
+                                id="importAutoRewrite"
+                                checked
+                                style="width:auto"
+                            >
+                            Rewrite body with AI
+                        </label>
+
+                        <label style="display:flex;gap:6px;align-items:center">
+                            <input
+                                type="checkbox"
+                                id="importAutoSeo"
+                                checked
+                                style="width:auto"
+                            >
+                            Generate Opening + SEO
+                        </label>
+                    </div>
+
+                    <input
+                        type="hidden"
+                        id="importedFeaturedImageUrl"
+                        name="imported_featured_image_url"
+                        value=""
+                    >
+
+                    <div
+                        id="articleImportStatus"
+                        class="muted"
+                        style="
+                            margin-top:8px;
+                            font-size:12px;
+                            line-height:1.45;
+                        "
+                    >
+                        Imports title and clean article text. Use only content you are allowed to reuse.
+                    </div>
+                </div>
+
                 <div class="field">
                     <label>Title</label>
                     <input
@@ -966,6 +1071,221 @@ syncEditor();
 
 
 /* =========================
+   IMPORT ARTICLE FROM URL
+========================= */
+const articleImportUrl =
+    document.getElementById('articleImportUrl');
+
+const articleImportBtn =
+    document.getElementById('articleImportBtn');
+
+const articleImportStatus =
+    document.getElementById('articleImportStatus');
+
+const importFeaturedImage =
+    document.getElementById('importFeaturedImage');
+
+const importAutoRewrite =
+    document.getElementById('importAutoRewrite');
+
+const importAutoSeo =
+    document.getElementById('importAutoSeo');
+
+const importedFeaturedImageUrl =
+    document.getElementById('importedFeaturedImageUrl');
+
+function setImportStatus(
+    message,
+    isError = false
+) {
+    articleImportStatus.textContent =
+        message;
+
+    articleImportStatus.style.color =
+        isError ? '#b91c1c' : '#64748b';
+}
+
+articleImportBtn.addEventListener(
+    'click',
+    async function () {
+        const sourceUrl =
+            (articleImportUrl.value || '')
+                .trim();
+
+        if (!sourceUrl) {
+            alert(
+                'Paste the public article URL first.'
+            );
+
+            articleImportUrl.focus();
+
+            return;
+        }
+
+        const currentTitle =
+            (
+                articleForm.elements
+                    .namedItem('title')
+                    ?.value
+                || ''
+            ).trim();
+
+        const currentBody =
+            (ed.innerText || '')
+                .trim();
+
+        if (
+            (currentTitle || currentBody) &&
+            !confirm(
+                'Importing will replace the current Title and Article body. Continue?'
+            )
+        ) {
+            return;
+        }
+
+        const oldLabel =
+            articleImportBtn.textContent;
+
+        articleImportBtn.disabled = true;
+        articleImportBtn.textContent =
+            'Importing…';
+
+        setImportStatus(
+            'Fetching and cleaning the source article…'
+        );
+
+        try {
+            const response = await fetch(
+                @json(route('admin.articles.import-url')),
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type':
+                            'application/json',
+                        'Accept':
+                            'application/json',
+                        'X-CSRF-TOKEN':
+                            @json(csrf_token())
+                    },
+                    body: JSON.stringify({
+                        source_url: sourceUrl
+                    })
+                }
+            );
+
+            let data = {};
+
+            try {
+                data =
+                    await response.json();
+            } catch (e) {
+                data = {};
+            }
+
+            if (!response.ok) {
+                throw new Error(
+                    data.message ||
+                    'Could not import this article.'
+                );
+            }
+
+            const titleField =
+                articleForm.elements
+                    .namedItem('title');
+
+            titleField.value =
+                data.title || '';
+
+            titleField.dispatchEvent(
+                new Event(
+                    'input',
+                    { bubbles: true }
+                )
+            );
+
+            ed.innerHTML =
+                data.body || '';
+
+            syncEditor();
+
+            /*
+             * Imported main image is only downloaded when Save article
+             * is clicked. This avoids orphan image files when the user
+             * abandons an imported draft.
+             */
+            if (
+                importFeaturedImage.checked &&
+                data.featured_image_url
+            ) {
+                importedFeaturedImageUrl.value =
+                    data.featured_image_url;
+
+                featuredImagePreview.src =
+                    data.featured_image_url;
+
+                featuredImagePreviewWrap.style.display =
+                    'block';
+
+                featuredImageName.textContent =
+                    'Imported featured image — will be copied to this site when you save.';
+            } else {
+                importedFeaturedImageUrl.value =
+                    '';
+            }
+
+            setImportStatus(
+                'Imported from '
+                + (data.source_host || 'source')
+                + '.'
+            );
+
+            let rewriteOk = true;
+
+            if (importAutoRewrite.checked) {
+                setImportStatus(
+                    'Article imported. AI is now rewriting the body…'
+                );
+
+                rewriteOk =
+                    await runArticleRewrite(
+                        true
+                    );
+            }
+
+            if (
+                rewriteOk &&
+                importAutoSeo.checked
+            ) {
+                setImportStatus(
+                    'Body ready. AI is generating Opening + SEO…'
+                );
+
+                await runAiOpeningSeo();
+            }
+
+            setImportStatus(
+                'Import complete. Review everything, choose Site/Category/Status, then Save article.'
+            );
+
+        } catch (error) {
+            console.error(error);
+
+            setImportStatus(
+                error.message ||
+                'Article import failed.',
+                true
+            );
+
+        } finally {
+            articleImportBtn.disabled = false;
+            articleImportBtn.textContent =
+                oldLabel;
+        }
+    }
+);
+
+
+/* =========================
    AI FULL ARTICLE REWRITE
 ========================= */
 const aiRewriteBtn =
@@ -1012,172 +1332,181 @@ restoreRewriteBtn.addEventListener(
     }
 );
 
-aiRewriteBtn.addEventListener(
-    'click',
-    async function () {
-        const titleField =
-            articleForm.elements.namedItem(
-                'title'
-            );
+async function runArticleRewrite(
+    skipConfirm = false
+) {
+    const titleField =
+        articleForm.elements.namedItem(
+            'title'
+        );
 
-        const title =
-            (titleField?.value || '')
-                .trim();
+    const title =
+        (titleField?.value || '')
+            .trim();
 
-        const articleText =
-            (ed.innerText || '')
-                .trim();
+    const articleText =
+        (ed.innerText || '')
+            .trim();
 
-        const articleHtml =
-            ed.innerHTML.trim();
+    const articleHtml =
+        ed.innerHTML.trim();
 
-        if (!title) {
-            alert(
-                'Please enter the article title first.'
-            );
+    if (!title) {
+        alert(
+            'Please enter the article title first.'
+        );
 
-            titleField?.focus();
+        titleField?.focus();
 
-            return;
-        }
+        return false;
+    }
 
-        if (articleText.length < 200) {
-            alert(
-                'Please add a fuller article body before rewriting.'
-            );
+    if (articleText.length < 200) {
+        alert(
+            'Please add a fuller article body before rewriting.'
+        );
 
-            ed.focus();
+        ed.focus();
 
-            return;
-        }
+        return false;
+    }
 
+    if (!skipConfirm) {
         const confirmed = confirm(
             'AI will replace the current Article body with a rewritten version. ' +
             'You can restore the original before saving. Continue?'
         );
 
         if (!confirmed) {
-            return;
+            return false;
         }
+    }
 
-        const oldLabel =
-            aiRewriteBtn.textContent;
+    const oldLabel =
+        aiRewriteBtn.textContent;
 
-        const originalHtml =
-            articleHtml;
+    const originalHtml =
+        articleHtml;
 
-        aiRewriteBtn.disabled = true;
+    aiRewriteBtn.disabled = true;
 
-        if (aiGenerateBtn) {
-            aiGenerateBtn.disabled = true;
-        }
+    if (aiGenerateBtn) {
+        aiGenerateBtn.disabled = true;
+    }
 
-        aiRewriteBtn.textContent =
-            'Rewriting…';
+    aiRewriteBtn.textContent =
+        'Rewriting…';
 
-        setRewriteStatus(
-            'AI is rewriting the full article. Please wait…'
+    setRewriteStatus(
+        'AI is rewriting the full article. Please wait…'
+    );
+
+    try {
+        const response = await fetch(
+            @json(route('admin.articles.ai-generate')),
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type':
+                        'application/json',
+                    'Accept':
+                        'application/json',
+                    'X-CSRF-TOKEN':
+                        @json(csrf_token())
+                },
+                body: JSON.stringify({
+                    mode: 'rewrite',
+                    title: title,
+                    body: articleHtml
+                })
+            }
         );
 
+        let data = {};
+
         try {
-            const response = await fetch(
-                @json(route('admin.articles.ai-generate')),
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type':
-                            'application/json',
-                        'Accept':
-                            'application/json',
-                        'X-CSRF-TOKEN':
-                            @json(csrf_token())
-                    },
-                    body: JSON.stringify({
-                        mode: 'rewrite',
-                        title: title,
-                        body: articleHtml
-                    })
-                }
-            );
-
-            let data = {};
-
-            try {
-                data =
-                    await response.json();
-            } catch (e) {
-                data = {};
-            }
-
-            if (!response.ok) {
-                throw new Error(
-                    data.message ||
-                    'AI rewrite failed. Please try again.'
-                );
-            }
-
-            if (!data.rewritten_body) {
-                throw new Error(
-                    'AI returned an empty rewritten article.'
-                );
-            }
-
-            lastBodyBeforeAiRewrite =
-                originalHtml;
-
-            ed.innerHTML =
-                data.rewritten_body;
-
-            syncEditor();
-
-            restoreRewriteBtn.style.display =
-                'inline-flex';
-
-            const rewrittenWords =
-                (ed.innerText || '')
-                    .trim()
-                    .split(/\s+/)
-                    .filter(Boolean)
-                    .length;
-
-            setRewriteStatus(
-                'Rewrite complete — '
-                + rewrittenWords
-                + ' words. Review it, then generate Opening + SEO or save.'
-            );
-
-            ed.scrollIntoView({
-                behavior: 'smooth',
-                block: 'start'
-            });
-
-        } catch (error) {
-            console.error(error);
-
-            /*
-             * Never replace the body when the AI request fails.
-             */
-            ed.innerHTML =
-                originalHtml;
-
-            syncEditor();
-
-            setRewriteStatus(
-                error.message ||
-                'AI rewrite failed. Please try again.',
-                true
-            );
-
-        } finally {
-            aiRewriteBtn.disabled = false;
-
-            aiRewriteBtn.textContent =
-                oldLabel;
-
-            if (aiGenerateBtn) {
-                aiGenerateBtn.disabled = false;
-            }
+            data =
+                await response.json();
+        } catch (e) {
+            data = {};
         }
+
+        if (!response.ok) {
+            throw new Error(
+                data.message ||
+                'AI rewrite failed. Please try again.'
+            );
+        }
+
+        if (!data.rewritten_body) {
+            throw new Error(
+                'AI returned an empty rewritten article.'
+            );
+        }
+
+        lastBodyBeforeAiRewrite =
+            originalHtml;
+
+        ed.innerHTML =
+            data.rewritten_body;
+
+        syncEditor();
+
+        restoreRewriteBtn.style.display =
+            'inline-flex';
+
+        const rewrittenWords =
+            (ed.innerText || '')
+                .trim()
+                .split(/\s+/)
+                .filter(Boolean)
+                .length;
+
+        setRewriteStatus(
+            'Rewrite complete — '
+            + rewrittenWords
+            + ' words. Review it, then generate Opening + SEO or save.'
+        );
+
+        ed.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+        });
+
+        return true;
+
+    } catch (error) {
+        console.error(error);
+
+        ed.innerHTML =
+            originalHtml;
+
+        syncEditor();
+
+        setRewriteStatus(
+            error.message ||
+            'AI rewrite failed. Please try again.',
+            true
+        );
+
+        return false;
+
+    } finally {
+        aiRewriteBtn.disabled = false;
+
+        aiRewriteBtn.textContent =
+            oldLabel;
+
+        if (aiGenerateBtn) {
+            aiGenerateBtn.disabled = false;
+        }
+    }
+}
+
+aiRewriteBtn.addEventListener(
+    'click',
+    function () {
+        runArticleRewrite(false);
     }
 );
 
@@ -1206,7 +1535,7 @@ function setAiStatus(message, isError = false) {
         isError ? '#b91c1c' : '#64748b';
 }
 
-aiGenerateBtn.addEventListener('click', async function () {
+async function runAiOpeningSeo() {
     const titleField =
         articleForm.elements.namedItem('title');
 
@@ -1219,7 +1548,7 @@ aiGenerateBtn.addEventListener('click', async function () {
     if (!title) {
         alert('Please enter the article title first.');
         titleField?.focus();
-        return;
+        return false;
     }
 
     if (articleText.length < 80) {
@@ -1227,14 +1556,16 @@ aiGenerateBtn.addEventListener('click', async function () {
             'Please add more article body text before using AI.'
         );
         ed.focus();
-        return;
+        return false;
     }
 
     const oldLabel = aiGenerateBtn.textContent;
 
     aiGenerateBtn.disabled = true;
     aiGenerateBtn.textContent = 'Generating…';
-    setAiStatus('AI is preparing the opening and SEO fields…');
+    setAiStatus(
+        'AI is preparing the opening and SEO fields…'
+    );
 
     try {
         const response = await fetch(
@@ -1247,6 +1578,7 @@ aiGenerateBtn.addEventListener('click', async function () {
                     'X-CSRF-TOKEN': @json(csrf_token())
                 },
                 body: JSON.stringify({
+                    mode: 'seo',
                     title: title,
                     body: articleText
                 })
@@ -1284,6 +1616,8 @@ aiGenerateBtn.addEventListener('click', async function () {
             'AI suggestions added. Review them before saving.'
         );
 
+        return true;
+
     } catch (error) {
         console.error(error);
 
@@ -1293,11 +1627,20 @@ aiGenerateBtn.addEventListener('click', async function () {
             true
         );
 
+        return false;
+
     } finally {
         aiGenerateBtn.disabled = false;
         aiGenerateBtn.textContent = oldLabel;
     }
-});
+}
+
+aiGenerateBtn.addEventListener(
+    'click',
+    function () {
+        runAiOpeningSeo();
+    }
+);
 
 
 /* =========================
