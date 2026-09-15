@@ -15,93 +15,65 @@ use App\Http\Controllers\Admin\{
     SiteController as AdminSites,
     AdSlotController as AdminAds,
     MediaController as AdminMedia,
-    GeminiArticleController as AdminGeminiArticle
+    GeminiArticleController as AdminGeminiArticle,
+    ArticleImportController as AdminArticleImport
 };
 
 use Illuminate\Support\Facades\Route;
-
-
-/*
-|--------------------------------------------------------------------------
-| PUBLIC ROUTES
-|--------------------------------------------------------------------------
-*/
 
 Route::get(
     '/',
     [HomeController::class, 'index']
 )->name('home');
 
-
 Route::get(
     '/story/{slug}',
     [ArticleController::class, 'show']
 )->name('articles.show');
-
 
 Route::view(
     '/about',
     'pages.about'
 )->name('about');
 
-
 Route::view(
     '/privacy',
     'pages.privacy'
 )->name('privacy');
-
 
 Route::view(
     '/terms',
     'pages.terms'
 )->name('terms');
 
-
 Route::view(
     '/editorial-policy',
     'pages.editorial'
 )->name('editorial');
-
 
 Route::view(
     '/contact',
     'pages.contact'
 )->name('contact');
 
-
 Route::get(
     '/ads.txt',
     [SystemController::class, 'ads']
 );
-
 
 Route::get(
     '/robots.txt',
     [SystemController::class, 'robots']
 );
 
-
 Route::get(
     '/sitemap.xml',
     [SystemController::class, 'sitemap']
 );
 
-
-/*
-|--------------------------------------------------------------------------
-| ADMIN ROUTES
-|--------------------------------------------------------------------------
-*/
-
 Route::prefix('admin')
     ->name('admin.')
     ->group(function () {
-
-        /*
-        |--------------------------------------------------------------------------
-        | ADMIN LOGIN
-        |--------------------------------------------------------------------------
-        */
 
         Route::middleware('guest')
             ->group(function () {
@@ -111,52 +83,24 @@ Route::prefix('admin')
                     [AdminAuth::class, 'create']
                 )->name('login');
 
-
                 Route::post(
                     '/login',
                     [AdminAuth::class, 'store']
                 )->name('login.store');
             });
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | AUTHENTICATED ADMIN
-        |--------------------------------------------------------------------------
-        */
-
         Route::middleware('auth')
             ->group(function () {
-
-                /*
-                |--------------------------------------------------------------------------
-                | LOGOUT
-                |--------------------------------------------------------------------------
-                */
 
                 Route::post(
                     '/logout',
                     [AdminAuth::class, 'destroy']
                 )->name('logout');
 
-
-                /*
-                |--------------------------------------------------------------------------
-                | DASHBOARD
-                |--------------------------------------------------------------------------
-                */
-
                 Route::get(
                     '/',
                     DashboardController::class
                 )->name('dashboard');
-
-
-                /*
-                |--------------------------------------------------------------------------
-                | DASHBOARD — EXPORT PUBLISHED ARTICLE URLS
-                |--------------------------------------------------------------------------
-                */
 
                 Route::get(
                     'dashboard/export-urls',
@@ -168,13 +112,6 @@ Route::prefix('admin')
                     'dashboard.export-urls'
                 );
 
-
-                /*
-                |--------------------------------------------------------------------------
-                | GEMINI AI
-                |--------------------------------------------------------------------------
-                */
-
                 Route::post(
                     'articles/ai-generate',
                     [
@@ -185,12 +122,17 @@ Route::prefix('admin')
                     'articles.ai-generate'
                 );
 
-
-                /*
-                |--------------------------------------------------------------------------
-                | ARTICLE TRASH / RESTORE
-                |--------------------------------------------------------------------------
-                */
+                Route::post(
+                    'articles/import-url',
+                    [
+                        AdminArticleImport::class,
+                        'import',
+                    ]
+                )
+                    ->middleware('throttle:10,1')
+                    ->name(
+                        'articles.import-url'
+                    );
 
                 Route::post(
                     'articles/{articleId}/restore',
@@ -202,7 +144,6 @@ Route::prefix('admin')
                     'articles.restore'
                 );
 
-
                 Route::delete(
                     'articles/{articleId}/force',
                     [
@@ -212,13 +153,6 @@ Route::prefix('admin')
                 )->name(
                     'articles.force-delete'
                 );
-
-
-                /*
-                |--------------------------------------------------------------------------
-                | ARTICLE PREVIEW
-                |--------------------------------------------------------------------------
-                */
 
                 Route::get(
                     'articles/{article}/preview',
@@ -230,69 +164,28 @@ Route::prefix('admin')
                     'articles.preview'
                 );
 
-
-                /*
-                |--------------------------------------------------------------------------
-                | ARTICLES
-                |--------------------------------------------------------------------------
-                */
-
                 Route::resource(
                     'articles',
                     AdminArticles::class
                 )->except(['show']);
-
-
-                /*
-                |--------------------------------------------------------------------------
-                | ARTISTS
-                |--------------------------------------------------------------------------
-                */
 
                 Route::resource(
                     'artists',
                     AdminArtists::class
                 )->except(['show']);
 
-
-                /*
-                |--------------------------------------------------------------------------
-                | CATEGORIES
-                |--------------------------------------------------------------------------
-                */
-
                 Route::resource(
                     'categories',
                     AdminCategories::class
                 )->except(['show']);
 
-
-                /*
-                |--------------------------------------------------------------------------
-                | ADMIN-ONLY SETTINGS
-                |--------------------------------------------------------------------------
-                */
-
                 Route::middleware('admin.role')
                     ->group(function () {
-
-                        /*
-                        |--------------------------------------------------------------------------
-                        | SITES
-                        |--------------------------------------------------------------------------
-                        */
 
                         Route::resource(
                             'sites',
                             AdminSites::class
                         )->except(['show']);
-
-
-                        /*
-                        |--------------------------------------------------------------------------
-                        | AD MANAGER
-                        |--------------------------------------------------------------------------
-                        */
 
                         Route::get(
                             'ads',
@@ -302,7 +195,6 @@ Route::prefix('admin')
                             ]
                         )->name('ads.index');
 
-
                         Route::get(
                             'ads/{adSlot}/edit',
                             [
@@ -310,7 +202,6 @@ Route::prefix('admin')
                                 'edit',
                             ]
                         )->name('ads.edit');
-
 
                         Route::put(
                             'ads/{adSlot}',
@@ -321,13 +212,6 @@ Route::prefix('admin')
                         )->name('ads.update');
                     });
 
-
-                /*
-                |--------------------------------------------------------------------------
-                | MEDIA
-                |--------------------------------------------------------------------------
-                */
-
                 Route::get(
                     'media',
                     [
@@ -336,7 +220,6 @@ Route::prefix('admin')
                     ]
                 )->name('media.index');
 
-
                 Route::post(
                     'media',
                     [
@@ -344,7 +227,6 @@ Route::prefix('admin')
                         'store',
                     ]
                 )->name('media.store');
-
 
                 Route::delete(
                     'media/{medium}',
@@ -355,13 +237,6 @@ Route::prefix('admin')
                 )->name('media.destroy');
             });
     });
-
-
-/*
-|--------------------------------------------------------------------------
-| LOGIN FALLBACK
-|--------------------------------------------------------------------------
-*/
 
 Route::redirect(
     '/login',
