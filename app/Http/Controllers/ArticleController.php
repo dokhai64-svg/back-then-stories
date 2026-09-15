@@ -8,6 +8,7 @@ use App\Models\{
 };
 use App\Services\SiteResolver;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Throwable;
 
 class ArticleController extends Controller
@@ -43,26 +44,20 @@ class ArticleController extends Controller
 
         $this->recordView($article);
 
-        $related = Article::query()
-            ->published()
-            ->where(
-                'site_id',
-                $article->site_id
-            )
-            ->whereKeyNot(
-                $article->id
-            )
-            ->when(
-                $article->category_id,
-                fn ($q) =>
-                    $q->where(
-                        'category_id',
-                        $article->category_id
-                    )
-            )
-            ->latest('published_at')
-            ->take(4)
-            ->get();
+        /*
+         * Build a useful recommendation set without repeating
+         * the article currently being read.
+         *
+         * Priority:
+         * 1) Same category
+         * 2) Same artist
+         * 3) Popular / recent articles from the same site
+         */
+        $related =
+            $this->recommendedArticles(
+                $article,
+                8
+            );
 
         return view(
             'articles.show',
@@ -71,6 +66,121 @@ class ArticleController extends Controller
                 'related'
             )
         );
+    }
+
+    private function recommendedArticles(
+        Article $article,
+        int $limit = 8
+    ): Collection {
+        $items = collect();
+
+        if ($article->category_id) {
+            $sameCategory =
+                Article::query()
+                    ->with([
+                        'category',
+                        'artist',
+                    ])
+                    ->published()
+                    ->where(
+                        'site_id',
+                        $article->site_id
+                    )
+                    ->where(
+                        'category_id',
+                        $article->category_id
+                    )
+                    ->whereKeyNot(
+                        $article->id
+                    )
+                    ->orderByDesc('views')
+                    ->orderByDesc('published_at')
+                    ->take($limit)
+                    ->get();
+
+            $items =
+                $items->concat(
+                    $sameCategory
+                );
+        }
+
+        if (
+            $items->count() < $limit &&
+            $article->artist_id
+        ) {
+            $needed =
+                $limit - $items->count();
+
+            $sameArtist =
+                Article::query()
+                    ->with([
+                        'category',
+                        'artist',
+                    ])
+                    ->published()
+                    ->where(
+                        'site_id',
+                        $article->site_id
+                    )
+                    ->where(
+                        'artist_id',
+                        $article->artist_id
+                    )
+                    ->whereKeyNot(
+                        $article->id
+                    )
+                    ->whereNotIn(
+                        'id',
+                        $items->pluck('id')
+                    )
+                    ->orderByDesc('views')
+                    ->orderByDesc('published_at')
+                    ->take($needed)
+                    ->get();
+
+            $items =
+                $items->concat(
+                    $sameArtist
+                );
+        }
+
+        if ($items->count() < $limit) {
+            $needed =
+                $limit - $items->count();
+
+            $fallback =
+                Article::query()
+                    ->with([
+                        'category',
+                        'artist',
+                    ])
+                    ->published()
+                    ->where(
+                        'site_id',
+                        $article->site_id
+                    )
+                    ->whereKeyNot(
+                        $article->id
+                    )
+                    ->whereNotIn(
+                        'id',
+                        $items->pluck('id')
+                    )
+                    ->orderByDesc('views')
+                    ->orderByDesc('published_at')
+                    ->take($needed)
+                    ->get();
+
+            $items =
+                $items->concat(
+                    $fallback
+                );
+        }
+
+        return $items
+            ->unique('id')
+            ->take($limit)
+            ->values();
     }
 
     private function recordView(
@@ -109,10 +219,6 @@ class ArticleController extends Controller
 
         $article->increment('views');
 
-        /*
-         * Daily history powers the analytics dashboard.
-         * Tracking begins from the day this upgrade is deployed.
-         */
         $daily =
             ArticleDailyView::firstOrCreate(
                 [
