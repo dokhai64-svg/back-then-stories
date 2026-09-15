@@ -18,6 +18,7 @@ class Article extends Model
         'category_id',
         'title',
         'slug',
+        'content_mode',
         'excerpt',
         'body',
         'featured_image',
@@ -58,6 +59,20 @@ class Article extends Model
             User::class,
             'user_id'
         );
+    }
+
+    public function aliases()
+    {
+        return $this->hasMany(
+            ArticleAlias::class
+        )->orderBy('id');
+    }
+
+    public function chapters()
+    {
+        return $this->hasMany(
+            ArticleChapter::class
+        )->orderBy('chapter_number');
     }
 
     public function scopePublished($query)
