@@ -103,6 +103,21 @@
         'Updated': 'Đã cập nhật',
         'Actions': 'Thao tác',
         'Action': 'Thao tác',
+        'Quick preview': 'Xem nhanh',
+        'Preview': 'Xem nhanh',
+        'Quick article preview': 'Xem nhanh bài viết',
+        'Edit article': 'Chỉnh sửa bài viết',
+        'Open page ↗': 'Mở trang ↗',
+        'Copy primary URL': 'Sao chép URL chính',
+        'Copy all URLs': 'Sao chép tất cả URL',
+        'Copy image URL': 'Sao chép URL ảnh',
+        'Open image ↗': 'Mở ảnh ↗',
+        'No featured image': 'Không có ảnh đại diện',
+        'Primary URL': 'URL chính',
+        'Content mode': 'Chế độ nội dung',
+        'Featured image': 'Ảnh đại diện',
+        'No category': 'Không có danh mục',
+        'Trash': 'Thùng rác',
         'Views': 'Lượt xem',
         'Published': 'Đã xuất bản',
         'Draft': 'Bản nháp',
@@ -327,6 +342,27 @@
         if (match) {
             return 'Chương '
                 + match[1];
+        }
+
+        match =
+            text.match(
+                /^Chapter\s+·\s+(\d+)\s+chapters$/i
+            );
+
+        if (match) {
+            return 'Chương · '
+                + match[1]
+                + ' chương';
+        }
+
+        match =
+            text.match(
+                /^(\d+)\s+URLs$/i
+            );
+
+        if (match) {
+            return match[1]
+                + ' URL';
         }
 
         match =
