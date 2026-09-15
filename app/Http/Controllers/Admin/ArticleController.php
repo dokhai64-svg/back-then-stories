@@ -11,6 +11,7 @@ use App\Models\{
 };
 use App\Services\ImageUploadService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -190,6 +191,14 @@ class ArticleController extends Controller
             $data['slug'] ?? null
         );
 
+        $importedImageUrl =
+            $data['imported_featured_image_url']
+            ?? null;
+
+        unset(
+            $data['imported_featured_image_url']
+        );
+
         if ($request->hasFile('featured_image_file')) {
             $upload = $images->store(
                 $request->file('featured_image_file'),
@@ -198,6 +207,17 @@ class ArticleController extends Controller
 
             $data['featured_image'] =
                 $upload['path'];
+
+        } elseif ($importedImageUrl) {
+            $downloaded =
+                $this->downloadRemoteImage(
+                    $importedImageUrl
+                );
+
+            if ($downloaded) {
+                $data['featured_image'] =
+                    $downloaded;
+            }
         }
 
         $this->normalizePublish($data);
@@ -264,6 +284,14 @@ class ArticleController extends Controller
             $article->id
         );
 
+        $importedImageUrl =
+            $data['imported_featured_image_url']
+            ?? null;
+
+        unset(
+            $data['imported_featured_image_url']
+        );
+
         if ($request->hasFile('featured_image_file')) {
             if ($article->featured_image) {
                 Storage::disk('public')
@@ -279,6 +307,24 @@ class ArticleController extends Controller
 
             $data['featured_image'] =
                 $upload['path'];
+
+        } elseif ($importedImageUrl) {
+            $downloaded =
+                $this->downloadRemoteImage(
+                    $importedImageUrl
+                );
+
+            if ($downloaded) {
+                if ($article->featured_image) {
+                    Storage::disk('public')
+                        ->delete(
+                            $article->featured_image
+                        );
+                }
+
+                $data['featured_image'] =
+                    $downloaded;
+            }
         }
 
         $this->normalizePublish($data);
@@ -395,6 +441,11 @@ class ArticleController extends Controller
                 'image',
                 'max:8192',
             ],
+            'imported_featured_image_url' => [
+                'nullable',
+                'url',
+                'max:2048',
+            ],
             'youtube_url' => [
                 'nullable',
                 'url',
@@ -495,6 +546,152 @@ class ArticleController extends Controller
         }
 
         return $slug;
+    }
+
+    private function downloadRemoteImage(
+        string $url
+    ): ?string {
+        try {
+            $parts =
+                parse_url($url);
+
+            if (
+                !is_array($parts) ||
+                !isset(
+                    $parts['scheme'],
+                    $parts['host']
+                ) ||
+                !in_array(
+                    mb_strtolower(
+                        $parts['scheme']
+                    ),
+                    ['http', 'https'],
+                    true
+                )
+            ) {
+                return null;
+            }
+
+            $host =
+                mb_strtolower(
+                    (string) $parts['host']
+                );
+
+            $ips =
+                gethostbynamel($host)
+                ?: [];
+
+            if (
+                filter_var(
+                    $host,
+                    FILTER_VALIDATE_IP
+                )
+            ) {
+                $ips[] = $host;
+            }
+
+            if (!$ips) {
+                return null;
+            }
+
+            foreach (
+                array_unique($ips)
+                as $ip
+            ) {
+                if (
+                    !filter_var(
+                        $ip,
+                        FILTER_VALIDATE_IP,
+                        FILTER_FLAG_NO_PRIV_RANGE
+                        | FILTER_FLAG_NO_RES_RANGE
+                    )
+                ) {
+                    return null;
+                }
+            }
+
+            $response =
+                Http::withHeaders([
+                    'User-Agent' =>
+                        'Mozilla/5.0 (compatible; BackThenStoriesImporter/1.0)',
+                    'Accept' =>
+                        'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+                ])
+                    ->withOptions([
+                        'allow_redirects' => false,
+                    ])
+                    ->connectTimeout(3)
+                    ->timeout(10)
+                    ->get($url);
+
+            if (!$response->successful()) {
+                return null;
+            }
+
+            $contentType =
+                mb_strtolower(
+                    trim(
+                        explode(
+                            ';',
+                            (string) $response->header(
+                                'Content-Type'
+                            )
+                        )[0]
+                    )
+                );
+
+            $extensions = [
+                'image/jpeg' => 'jpg',
+                'image/jpg' => 'jpg',
+                'image/png' => 'png',
+                'image/webp' => 'webp',
+                'image/gif' => 'gif',
+            ];
+
+            if (
+                !isset(
+                    $extensions[$contentType]
+                )
+            ) {
+                return null;
+            }
+
+            $contents =
+                (string) $response->body();
+
+            if (
+                $contents === '' ||
+                strlen($contents)
+                    > 8 * 1024 * 1024
+            ) {
+                return null;
+            }
+
+            $path =
+                'articles/imported/'
+                . Str::uuid()
+                . '.'
+                . $extensions[$contentType];
+
+            Storage::disk('public')
+                ->put(
+                    $path,
+                    $contents
+                );
+
+            return $path;
+
+        } catch (\Throwable $e) {
+            logger()->warning(
+                'Imported featured image download failed',
+                [
+                    'url' => $url,
+                    'message' => $e->getMessage(),
+                ]
+            );
+
+            return null;
+        }
     }
 
     private function normalizePublish(
