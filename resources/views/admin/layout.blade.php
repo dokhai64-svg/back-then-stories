@@ -41,7 +41,7 @@
     border-color:#fff;
 }
 @media(max-width:900px){.layout{grid-template-columns:1fr}.side{position:relative;height:auto}.main{padding:16px}.stats{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}.media-grid{grid-template-columns:repeat(2,1fr)}}
-</style>@stack('head')</head><body><div class="layout"><aside class="side"><div class="logo">BACK THEN STORIES</div><nav class="nav"><a href="{{ route('admin.dashboard') }}">Dashboard</a><a href="{{ route('admin.articles.index') }}">Articles</a><a href="{{ route('admin.artists.index') }}">Artists</a><a href="{{ route('admin.categories.index') }}">Categories</a><a href="{{ route('admin.media.index') }}">Media</a>@if(auth()->user()->role==='admin')<a href="{{ route('admin.sites.index') }}">Sites</a><a href="{{ route('admin.ads.index') }}">Ad Manager</a>@endif<a href="{{ route('home') }}" target="_blank">View website ↗</a></nav>
+</style>@stack('head')</head><body><div class="layout"><aside class="side"><div class="logo">BACK THEN STORIES</div><nav class="nav"><a href="{{ route('admin.dashboard') }}">Dashboard</a><a href="{{ route('admin.articles.index') }}">Articles</a><a href="{{ route('admin.artists.index') }}">Artists</a><a href="{{ route('admin.categories.index') }}">Categories</a><a href="{{ route('admin.media.index') }}">Media</a>@if(auth()->user()->role==='admin')<a href="{{ route('admin.sites.index') }}">Sites</a><a href="{{ route('admin.ads.index') }}">Ad Manager</a><a href="{{ route('admin.system-health') }}">System Health</a>@endif<a href="{{ route('home') }}" target="_blank">View website ↗</a></nav>
 <div class="admin-lang-switcher" aria-label="Admin UI language">
     <div class="admin-lang-title" id="adminLangTitle">
         Admin UI language
@@ -78,6 +78,7 @@
         'Media': 'Thư viện phương tiện',
         'Sites': 'Trang web',
         'Ad Manager': 'Quản lý quảng cáo',
+        'System Health': 'Tình trạng hệ thống',
         'View website ↗': 'Xem website ↗',
         'Logout': 'Đăng xuất',
         'Administrator': 'Quản trị viên',
@@ -246,6 +247,32 @@
         'Time': 'Thời gian',
         'User': 'Người dùng',
         'Fields changed': 'Trường đã thay đổi',
+        'Production safety overview': 'Tổng quan an toàn hệ thống',
+        'Database, storage, cache, backups and recent application errors.':
+            'Cơ sở dữ liệu, lưu trữ, cache, sao lưu và lỗi ứng dụng gần đây.',
+        'Core systems healthy': 'Các hệ thống chính hoạt động tốt',
+        'Needs attention': 'Cần kiểm tra',
+        'Database': 'Cơ sở dữ liệu',
+        'Public storage': 'Lưu trữ công khai',
+        'Public storage link': 'Liên kết lưu trữ công khai',
+        'Config cache': 'Cache cấu hình',
+        'Route cache': 'Cache route',
+        'View cache': 'Cache giao diện',
+        'Content snapshot': 'Tổng quan nội dung',
+        'Backup': 'Sao lưu',
+        'Create a full content + media backup': 'Tạo bản sao lưu đầy đủ nội dung + ảnh',
+        'Faster content-only backup': 'Sao lưu nhanh chỉ nội dung',
+        'Backup file': 'Tệp sao lưu',
+        'Size': 'Dung lượng',
+        'Download': 'Tải xuống',
+        'No backups created yet.': 'Chưa có bản sao lưu nào.',
+        'Speed / cache': 'Tốc độ / cache',
+        'Safe Laravel optimization': 'Tối ưu Laravel an toàn',
+        'Recent application errors': 'Lỗi ứng dụng gần đây',
+        'No recent production.ERROR entries found in the Laravel log.':
+            'Không tìm thấy lỗi production.ERROR gần đây trong log Laravel.',
+        'Only the latest error headline is shown here; stack traces and environment secrets are not displayed.':
+            'Chỉ hiển thị dòng lỗi gần nhất; stack trace và bí mật môi trường không được hiển thị.',
         'Current role': 'Vai trò hiện tại',
         'Sites available': 'Trang có thể truy cập',
         'Open Articles': 'Mở Bài viết',
