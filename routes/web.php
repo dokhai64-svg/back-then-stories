@@ -16,7 +16,8 @@ use App\Http\Controllers\Admin\{
     AdSlotController as AdminAds,
     MediaController as AdminMedia,
     GeminiArticleController as AdminGeminiArticle,
-    ArticleImportController as AdminArticleImport
+    ArticleImportController as AdminArticleImport,
+    SystemHealthController as AdminSystemHealth
 };
 
 use Illuminate\Support\Facades\Route;
@@ -119,6 +120,31 @@ Route::prefix('admin')
                 )->name(
                     'dashboard.export-urls'
                 );
+
+                Route::get(
+                    'system-health',
+                    [
+                        AdminSystemHealth::class,
+                        'index',
+                    ]
+                )->name(
+                    'system-health'
+                );
+
+                Route::get(
+                    'system-health/backups/{filename}',
+                    [
+                        AdminSystemHealth::class,
+                        'downloadBackup',
+                    ]
+                )
+                    ->where(
+                        'filename',
+                        '[A-Za-z0-9._-]+'
+                    )
+                    ->name(
+                        'system-health.backup'
+                    );
 
                 Route::post(
                     'articles/ai-generate',
