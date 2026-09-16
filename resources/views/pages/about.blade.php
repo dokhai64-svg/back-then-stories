@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'About Us | Back Then Stories')
-@section('meta', 'Learn about Back Then Stories, an editorial website covering classic music, television, film, performers, and cultural memories.')
+@section('meta', 'Learn about Back Then Stories, an editorial website sharing memorable stories about entertainment, culture, everyday life, people, history, and the moments that stay with us.')
 
 @section('content')
 <main class="article">
@@ -9,52 +9,60 @@
 
     <div class="body">
         <p>
-            <strong>Back Then Stories</strong> is an editorial website dedicated to the music,
-            television, film, performers, and cultural moments that continue to live in people's
-            memories.
+            <strong>Back Then Stories</strong> is an editorial website built around memorable
+            stories — from entertainment and popular culture to everyday life, remarkable people,
+            human experiences, history, and the moments that stay with us.
         </p>
 
         <p>
-            We publish carefully edited stories about classic entertainment and the people behind it.
-            Our goal is to give readers clear, engaging context around memorable songs, artists,
-            performances, television moments, films, and entertainment history.
+            We publish carefully edited articles designed to inform, entertain, and give readers
+            useful context. Some stories look back at familiar names and cultural moments, while
+            others explore real-life experiences, unusual events, inspiring journeys, personal
+            turning points, and stories worth remembering.
         </p>
 
         <h2>What We Cover</h2>
         <p>
-            Our coverage focuses primarily on classic popular culture, including music, singers,
-            songwriters, actors, television personalities, films, performances, and significant
-            moments from entertainment history.
+            Our coverage may include music, film, television, celebrities, culture, nostalgia,
+            history, lifestyle, human-interest stories, relationships, family, personal journeys,
+            remarkable events, and other subjects that can spark curiosity, emotion, or meaningful
+            conversation.
+        </p>
+
+        <p>
+            Back Then Stories is not limited to one category. As the publication grows, we may
+            continue expanding into new topics that fit our broader mission: telling engaging,
+            understandable, and worthwhile stories for a general audience.
         </p>
 
         <h2>Our Editorial Approach</h2>
         <p>
-            We aim to present stories in an accessible and accurate way. When preparing articles,
-            we seek to verify important names, dates, releases, chart history, quotations, and other
-            factual details using reliable available sources.
+            We aim to present stories in a clear, accessible, and responsible way. When an article
+            includes factual claims, dates, names, quotations, historical details, or other
+            verifiable information, we seek to check important details against reliable available
+            sources.
         </p>
 
         <p>
-            Some stories may revisit widely remembered events or topics that have been covered
-            elsewhere over the years. Our articles are edited for our own audience and presentation,
-            and we aim to add useful context rather than simply reproduce material from another
-            publication.
+            Some topics may already be widely discussed elsewhere. Our goal is to create our own
+            edited presentation for readers, add useful context where possible, and avoid simply
+            reproducing material from another publication.
         </p>
 
         <h2>Corrections and Updates</h2>
         <p>
-            Entertainment history can contain conflicting accounts or incomplete records. If we
-            discover a meaningful factual error, we may correct or update the article. Readers who
-            believe something needs correction can reach us through our
+            Information can change, and historical or personal accounts can sometimes conflict.
+            If we discover a meaningful factual error, we may correct or update the article.
+            Readers who believe something needs correction can reach us through our
             <a href="{{ route('contact') }}">Contact page</a>.
         </p>
 
         <h2>Independence</h2>
         <p>
-            Back Then Stories is an editorial publication. Unless an article clearly states
-            otherwise, references to artists, performers, companies, songs, films, television
-            programs, trademarks, or other properties do not imply endorsement, sponsorship, or
-            official affiliation.
+            Back Then Stories is an independent editorial publication. Unless an article clearly
+            states otherwise, references to people, companies, brands, artists, films, television
+            programs, products, organizations, or other properties do not imply endorsement,
+            sponsorship, or official affiliation.
         </p>
 
         <h2>Advertising</h2>
