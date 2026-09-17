@@ -4803,4 +4803,6 @@ window.addEventListener('beforeunload', function () {
 });
 </script>
 
+<script src="{{ asset('js/pre-publish-check.js') }}"></script>
+
 @endpush
