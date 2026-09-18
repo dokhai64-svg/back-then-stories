@@ -191,7 +191,7 @@
 
     function listHtml(items) {
         if (!Array.isArray(items) || !items.length) {
-            return '<div class="as31-sub">None reported.</div>';
+            return '<div class="as31-sub">Không ghi nhận.</div>';
         }
 
         return '<ul class="as31-list">' +
@@ -385,27 +385,27 @@
     panel.innerHTML = `
         <div class="as31-head">
             <div>
-                <div class="as31-title">One-Click AdSense Safety Check</div>
+                <div class="as31-title">Kiểm tra an toàn AdSense một chạm</div>
                 <div class="as31-sub">
-                    Local scan → safe Draft auto-save → Gemini policy review → Preview/Live audit → combined result.
+                    Quét nội dung → tự lưu Draft an toàn → Gemini đánh giá chính sách → kiểm tra Preview/Live → tổng hợp kết quả.
                 </div>
             </div>
-            <span id="as31Status" class="as31-status">NOT RUN</span>
+            <span id="as31Status" class="as31-status">CHƯA CHẠY</span>
         </div>
 
         <button type="button" id="as31Run" class="as31-btn">
-            ✨ RUN FULL ADSENSE CHECK
+            ✨ CHẠY KIỂM TRA ADSENSE TOÀN BỘ
         </button>
 
         <div id="as31Progress" class="as31-progress"></div>
 
         <div id="as31AiSection" class="as31-section" style="display:none">
-            <div class="as31-section-title">Gemini AI Policy Review</div>
+            <div class="as31-section-title">Đánh giá chính sách bằng Gemini AI</div>
             <div id="as31AiResult"></div>
         </div>
 
         <div id="as31LiveSection" class="as31-section" style="display:none">
-            <div class="as31-section-title">Preview / Live Page Audit</div>
+            <div class="as31-section-title">Kiểm tra trang Preview / Live</div>
             <div id="as31LiveResult"></div>
         </div>
 
@@ -484,7 +484,7 @@
 
         if (currentStatus === 'published') {
             throw new Error(
-                'This article is already Published. To avoid publishing unreviewed edits, One-Click Check will not auto-save over a live article. Use a Draft/Review copy for major edits.'
+                'Bài này đang Published. Để tránh ghi đè thay đổi chưa được kiểm tra lên bài đang live, One-Click sẽ không tự lưu. Hãy dùng bản Draft/Review khi chỉnh sửa lớn.'
             );
         }
 
@@ -510,7 +510,7 @@
 
         if (!response.ok) {
             throw new Error(
-                'Automatic Draft save failed (HTTP ' + response.status + ').'
+                'Tự động lưu Draft thất bại (HTTP ' + response.status + ').'
             );
         }
 
@@ -524,7 +524,7 @@
 
         if (!alreadyExisting && !newArticleSaved) {
             throw new Error(
-                'Automatic Draft save did not reach an Edit page. Check required fields and validation errors.'
+                'Tự động lưu Draft không chuyển được đến trang Edit. Hãy kiểm tra các trường bắt buộc và lỗi validation.'
             );
         }
 
@@ -577,39 +577,39 @@
 
         aiResult.innerHTML = `
             <div class="as31-card">
-                <strong>Overall</strong>
+                <strong>Kết quả tổng thể</strong>
                 ${escapeHtml(data.overall || 'NEED_REVIEW')}
             </div>
             <div class="as31-card">
-                <strong>Original value</strong>
+                <strong>Giá trị biên tập riêng</strong>
                 ${escapeHtml(data.original_value || '')}
             </div>
             <div class="as31-card">
-                <strong>Replicated-content risk</strong>
+                <strong>Rủi ro nội dung sao chép / tái tạo</strong>
                 ${escapeHtml(data.replicated_content_risk || '')}
             </div>
             <div class="as31-card">
-                <strong>Originality comparison</strong>
+                <strong>So sánh tính nguyên bản</strong>
                 ${escapeHtml(data.source_comparison || '')}
             </div>
             <div class="as31-card">
-                <strong>YouTube / embed</strong>
+                <strong>YouTube / nội dung nhúng</strong>
                 ${escapeHtml(data.youtube_embed_assessment || '')}
             </div>
             <div class="as31-card">
-                <strong>Fact-check items</strong>
+                <strong>Các mục cần kiểm chứng</strong>
                 ${listHtml(data.fact_check_items)}
             </div>
             <div class="as31-card">
-                <strong>Media-rights items</strong>
+                <strong>Các mục về quyền media</strong>
                 ${listHtml(data.media_rights_items)}
             </div>
             <div class="as31-card">
-                <strong>Policy flags</strong>
+                <strong>Cảnh báo chính sách</strong>
                 ${listHtml(data.policy_flags)}
             </div>
             <div class="as31-card">
-                <strong>Required fixes</strong>
+                <strong>Các mục cần xử lý</strong>
                 ${listHtml(data.required_fixes)}
             </div>
         `;
@@ -665,14 +665,14 @@
         if (!response.ok) {
             add(
                 'block',
-                'Preview HTTP',
+                'Trạng thái HTTP Preview',
                 'Preview returned HTTP ' + response.status + '.'
             );
 
             return { rows, blocks: blocks + 1, warnings };
         }
 
-        add('pass', 'Preview HTTP', 'HTTP ' + response.status + '.');
+        add('pass', 'Trạng thái HTTP Preview', 'HTTP ' + response.status + '.');
 
         const html = await response.text();
         const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -680,9 +680,9 @@
         const pageTitle = (doc.querySelector('title')?.textContent || '').trim();
 
         if (pageTitle) {
-            add('pass', 'Page title', pageTitle);
+            add('pass', 'Tiêu đề trang', pageTitle);
         } else {
-            add('block', 'Page title', 'No <title> rendered.');
+            add('block', 'Tiêu đề trang', 'No <title> rendered.');
         }
 
         const canonical =
@@ -713,14 +713,14 @@
         if (renderedWords < 120) {
             add(
                 'block',
-                'Rendered publisher content',
-                renderedWords + ' rendered words.'
+                'Nội dung bài đã render',
+                renderedWords + ' từ đã được render.'
             );
         } else {
             add(
                 'pass',
-                'Rendered publisher content',
-                renderedWords + ' rendered words.'
+                'Nội dung bài đã render',
+                renderedWords + ' từ đã được render.'
             );
         }
 
@@ -738,14 +738,14 @@
         if (placeholders.length) {
             add(
                 'block',
-                'Placeholder content',
+                'Nội dung placeholder',
                 'Found: ' + placeholders.join(', ')
             );
         } else {
             add(
                 'pass',
-                'Placeholder content',
-                'No common unfinished-page text detected.'
+                'Nội dung placeholder',
+                'Không phát hiện nội dung placeholder phổ biến.'
             );
         }
 
@@ -774,8 +774,8 @@
                 found ? 'pass' : 'warn',
                 label + ' link',
                 found
-                    ? 'Present on rendered page.'
-                    : 'No ' + path + ' link found on this rendered page.'
+                    ? 'Có trên trang đã render.'
+                    : 'Không tìm thấy liên kết ' + path + ' trên trang đã render.'
             );
         }
 
@@ -795,19 +795,19 @@
             add(
                 'block',
                 'YouTube embed',
-                invalidYoutube.length + ' invalid YouTube iframe URL(s).'
+                invalidYoutube.length + ' URL YouTube iframe không hợp lệ.'
             );
         } else if (youtube.length) {
             add(
                 'pass',
                 'YouTube embed',
-                youtube.length + ' valid YouTube iframe(s) rendered.'
+                youtube.length + ' YouTube iframe hợp lệ đã được render.'
             );
         } else {
             add(
                 'pass',
                 'YouTube embed',
-                'No YouTube iframe detected; this is fine.'
+                'Không phát hiện YouTube iframe; điều này hoàn toàn bình thường.'
             );
         }
 
@@ -835,21 +835,21 @@
             if (broken.length) {
                 add(
                     'block',
-                    'Rendered images',
-                    broken.length + ' image(s) failed to load.'
+                    'Ảnh đã render',
+                    broken.length + ' ảnh tải thất bại.'
                 );
             } else {
                 add(
                     'pass',
-                    'Rendered images',
-                    imageUrls.length + ' image(s) loaded successfully.'
+                    'Ảnh đã render',
+                    imageUrls.length + ' ảnh đã tải thành công.'
                 );
             }
         } else {
             add(
                 'pass',
-                'Rendered images',
-                'No images detected. Images are not required.'
+                'Ảnh đã render',
+                'Không phát hiện ảnh. Bài viết không bắt buộc phải có ảnh.'
             );
         }
 
@@ -859,10 +859,10 @@
 
         add(
             'warn',
-            'Final ad density',
+            'Mật độ quảng cáo cuối cùng',
             ads +
-                ' ad/ad-placeholder element(s) detected. ' +
-                'Human review is still required because actual served-ad density can change.'
+                ' phần tử quảng cáo/ad-placeholder được phát hiện. ' +
+                'Vẫn cần người kiểm tra vì mật độ quảng cáo thực tế có thể thay đổi khi Google phân phối.'
         );
 
         return {
@@ -881,8 +881,8 @@
         resetUi();
         runBtn.disabled = true;
         const oldLabel = runBtn.textContent;
-        runBtn.textContent = 'Running full check…';
-        setStatus('RUNNING', 'review');
+        runBtn.textContent = 'Đang chạy kiểm tra toàn bộ…';
+        setStatus('ĐANG KIỂM TRA', 'review');
 
         try {
             clickExistingLocalChecker();
@@ -891,10 +891,10 @@
 
             if (local.blocks.length) {
                 local.blocks.forEach(message =>
-                    addProgress('block', 'Local check', message)
+                    addProgress('block', 'Kiểm tra cục bộ', message)
                 );
 
-                setStatus('HIGH RISK', 'risk');
+                setStatus('RỦI RO CAO', 'risk');
                 finalResult = 'HIGH_RISK';
                 lastFingerprint = fingerprint();
 
@@ -903,24 +903,24 @@
 
             addProgress(
                 'pass',
-                'Local content scan',
+                'Quét nội dung cục bộ',
                 local.words +
-                    ' words • ' +
+                    ' từ • ' +
                     local.images +
-                    ' body image(s) • ' +
+                    ' ảnh trong nội dung • ' +
                     local.youtube +
-                    ' YouTube embed(s).'
+                    ' YouTube embed.'
             );
 
             local.warnings.forEach(message =>
-                addProgress('warn', 'Local review', message)
+                addProgress('warn', 'Cần xem lại cục bộ', message)
             );
 
             if (!options.skipAutoSave) {
                 addProgress(
                     'info',
-                    'Safe Draft',
-                    'Saving current article as Draft automatically before Preview audit…'
+                    'Lưu Draft an toàn',
+                    'Đang tự động lưu phiên bản hiện tại dưới dạng Draft trước khi kiểm tra Preview…'
                 );
 
                 const saved = await safeAutoSaveDraft();
@@ -933,14 +933,14 @@
 
                 addProgress(
                     'pass',
-                    'Safe Draft',
-                    'Current article version saved as Draft.'
+                    'Lưu Draft an toàn',
+                    'Phiên bản hiện tại đã được lưu dưới dạng Draft.'
                 );
             } else {
                 addProgress(
                     'pass',
-                    'Safe Draft',
-                    'Draft is ready for automatic review.'
+                    'Lưu Draft an toàn',
+                    'Bản Draft đã sẵn sàng để kiểm tra tự động.'
                 );
             }
 
@@ -949,40 +949,40 @@
             addProgress(
                 'info',
                 'Gemini',
-                'Reviewing editorial value and policy-risk signals…'
+                'Đang đánh giá giá trị biên tập và các tín hiệu rủi ro chính sách…'
             );
 
             const ai = await runAiReview(localAfterSave);
 
             renderAi(ai);
 
-            const aiOverall =
+            const aiKết quả tổng thể =
                 String(ai.overall || 'NEED_REVIEW').toUpperCase();
 
-            if (aiOverall === 'PASS') {
+            if (aiKết quả tổng thể === 'ĐẠT') {
                 addProgress(
                     'pass',
-                    'Gemini AI Policy Review',
-                    'PASS'
+                    'Đánh giá chính sách bằng Gemini AI',
+                    'ĐẠT'
                 );
-            } else if (aiOverall === 'HIGH_RISK') {
+            } else if (aiKết quả tổng thể === 'HIGH_RISK') {
                 addProgress(
                     'block',
-                    'Gemini AI Policy Review',
-                    'HIGH RISK'
+                    'Đánh giá chính sách bằng Gemini AI',
+                    'RỦI RO CAO'
                 );
             } else {
                 addProgress(
                     'warn',
-                    'Gemini AI Policy Review',
-                    'NEED REVIEW'
+                    'Đánh giá chính sách bằng Gemini AI',
+                    'CẦN XEM LẠI'
                 );
             }
 
             addProgress(
                 'info',
-                'Preview / Live Audit',
-                'Checking the saved Preview page…'
+                'Kiểm tra Preview / Live',
+                'Đang kiểm tra trang Preview đã lưu…'
             );
 
             const live = await runLiveAudit();
@@ -991,47 +991,47 @@
             if (live.blocks > 0) {
                 addProgress(
                     'block',
-                    'Preview / Live Audit',
-                    live.blocks + ' blocking issue(s).'
+                    'Kiểm tra Preview / Live',
+                    live.blocks + ' lỗi cần xử lý trước.'
                 );
             } else if (live.warnings > 0) {
                 addProgress(
                     'warn',
-                    'Preview / Live Audit',
-                    live.warnings + ' review item(s).'
+                    'Kiểm tra Preview / Live',
+                    live.warnings + ' mục cần xem lại.'
                 );
             } else {
                 addProgress(
                     'pass',
-                    'Preview / Live Audit',
-                    'PASS'
+                    'Kiểm tra Preview / Live',
+                    'ĐẠT'
                 );
             }
 
             const hasLocalWarnings = localAfterSave.warnings.length > 0;
 
             if (
-                aiOverall === 'HIGH_RISK' ||
+                aiKết quả tổng thể === 'HIGH_RISK' ||
                 live.blocks > 0
             ) {
                 finalResult = 'HIGH_RISK';
-                setStatus('HIGH RISK', 'risk');
+                setStatus('RỦI RO CAO', 'risk');
                 manualReviewRequired = true;
                 manualWrap.classList.add('open');
 
             } else if (
-                aiOverall === 'NEED_REVIEW' ||
+                aiKết quả tổng thể === 'NEED_REVIEW' ||
                 live.warnings > 0 ||
                 hasLocalWarnings
             ) {
                 finalResult = 'NEED_REVIEW';
-                setStatus('NEED REVIEW', 'review');
+                setStatus('CẦN XEM LẠI', 'review');
                 manualReviewRequired = true;
                 manualWrap.classList.add('open');
 
             } else {
-                finalResult = 'PASS';
-                setStatus('PASS', 'pass');
+                finalResult = 'ĐẠT';
+                setStatus('ĐẠT', 'pass');
                 manualReviewRequired = false;
             }
 
@@ -1047,12 +1047,12 @@
 
         } catch (error) {
             finalResult = 'HIGH_RISK';
-            setStatus('CHECK ERROR', 'risk');
+            setStatus('LỖI KIỂM TRA', 'risk');
 
             addProgress(
                 'block',
-                'Full check stopped',
-                error.message || 'The full safety check could not finish.'
+                'Kiểm tra toàn bộ đã dừng',
+                error.message || 'Không thể hoàn tất kiểm tra an toàn.'
             );
 
         } finally {
@@ -1073,7 +1073,7 @@
             finalResult = '';
             manualBox.checked = false;
 
-            setStatus('ARTICLE CHANGED', 'review');
+            setStatus('BÀI ĐÃ THAY ĐỔI', 'review');
         }
     });
 
@@ -1088,7 +1088,7 @@
             event.preventDefault();
 
             alert(
-                'Run FULL ADSENSE CHECK on the current article before publishing.'
+                'Hãy chạy KIỂM TRA ADSENSE TOÀN BỘ trên phiên bản hiện tại trước khi xuất bản.'
             );
 
             return;
@@ -1098,7 +1098,7 @@
             event.preventDefault();
 
             alert(
-                'This article is marked HIGH RISK. Fix the flagged issues and run the full check again before publishing.'
+                'Bài này đang được đánh dấu RỦI RO CAO. Hãy xử lý các vấn đề được nêu rồi chạy kiểm tra lại trước khi xuất bản.'
             );
 
             return;
@@ -1117,7 +1117,7 @@
             });
 
             alert(
-                'Review the warnings and tick the manual-review confirmation before publishing.'
+                'Hãy đọc các cảnh báo và tích ô xác nhận kiểm tra thủ công trước khi xuất bản.'
             );
         }
     });
