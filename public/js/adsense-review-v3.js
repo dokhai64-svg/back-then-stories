@@ -491,6 +491,7 @@
         const data = new FormData(form);
 
         data.set('status', 'draft');
+        data.set('adsense_auto_draft', '1');
 
         // Never let an automatic safety scan accidentally publish.
         if (statusSelect) {
