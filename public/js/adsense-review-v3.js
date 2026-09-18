@@ -413,15 +413,15 @@
             <label>
                 <input type="checkbox" id="as31ManualBox">
                 <span>
-                    I manually reviewed the warnings and confirm the article has original editorial value,
-                    media rights have been reviewed, and no known policy issue is being ignored.
+                    Tôi đã tự kiểm tra các cảnh báo và xác nhận bài có giá trị biên tập riêng,
+                    quyền sử dụng media đã được xem xét và không cố tình bỏ qua vấn đề chính sách nào đã biết.
                 </span>
             </label>
         </div>
 
         <div class="as31-note">
-            This is a conservative editorial safety tool, not a Google approval certificate.
-            It cannot prove copyright ownership, licensing, plagiarism, or future AdSense approval.
+            Đây là công cụ kiểm tra an toàn biên tập theo hướng thận trọng, không phải chứng nhận duyệt của Google.
+            Công cụ không thể chứng minh quyền sở hữu bản quyền, giấy phép, đạo văn hoặc đảm bảo AdSense sẽ duyệt.
         </div>
     `;
 
@@ -484,7 +484,7 @@
 
         if (currentStatus === 'published') {
             throw new Error(
-                'Bài này đang Published. Để tránh ghi đè thay đổi chưa được kiểm tra lên bài đang live, One-Click sẽ không tự lưu. Hãy dùng bản Draft/Review khi chỉnh sửa lớn.'
+                'This article is already Published. To avoid publishing unreviewed edits, One-Click Check will not auto-save over a live article. Use a Draft/Review copy for major edits.'
             );
         }
 
@@ -510,7 +510,7 @@
 
         if (!response.ok) {
             throw new Error(
-                'Tự động lưu Draft thất bại (HTTP ' + response.status + ').'
+                'Automatic Draft save failed (HTTP ' + response.status + ').'
             );
         }
 
@@ -524,7 +524,7 @@
 
         if (!alreadyExisting && !newArticleSaved) {
             throw new Error(
-                'Tự động lưu Draft không chuyển được đến trang Edit. Hãy kiểm tra các trường bắt buộc và lỗi validation.'
+                'Automatic Draft save did not reach an Edit page. Check required fields and validation errors.'
             );
         }
 
@@ -665,14 +665,14 @@
         if (!response.ok) {
             add(
                 'block',
-                'Trạng thái HTTP Preview',
+                'Preview HTTP',
                 'Preview returned HTTP ' + response.status + '.'
             );
 
             return { rows, blocks: blocks + 1, warnings };
         }
 
-        add('pass', 'Trạng thái HTTP Preview', 'HTTP ' + response.status + '.');
+        add('pass', 'Preview HTTP', 'HTTP ' + response.status + '.');
 
         const html = await response.text();
         const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -680,9 +680,9 @@
         const pageTitle = (doc.querySelector('title')?.textContent || '').trim();
 
         if (pageTitle) {
-            add('pass', 'Tiêu đề trang', pageTitle);
+            add('pass', 'Page title', pageTitle);
         } else {
-            add('block', 'Tiêu đề trang', 'No <title> rendered.');
+            add('block', 'Page title', 'No <title> rendered.');
         }
 
         const canonical =
@@ -713,14 +713,14 @@
         if (renderedWords < 120) {
             add(
                 'block',
-                'Nội dung bài đã render',
-                renderedWords + ' từ đã được render.'
+                'Rendered publisher content',
+                renderedWords + ' rendered words.'
             );
         } else {
             add(
                 'pass',
-                'Nội dung bài đã render',
-                renderedWords + ' từ đã được render.'
+                'Rendered publisher content',
+                renderedWords + ' rendered words.'
             );
         }
 
@@ -738,14 +738,14 @@
         if (placeholders.length) {
             add(
                 'block',
-                'Nội dung placeholder',
+                'Placeholder content',
                 'Found: ' + placeholders.join(', ')
             );
         } else {
             add(
                 'pass',
-                'Nội dung placeholder',
-                'Không phát hiện nội dung placeholder phổ biến.'
+                'Placeholder content',
+                'No common unfinished-page text detected.'
             );
         }
 
@@ -774,8 +774,8 @@
                 found ? 'pass' : 'warn',
                 label + ' link',
                 found
-                    ? 'Có trên trang đã render.'
-                    : 'Không tìm thấy liên kết ' + path + ' trên trang đã render.'
+                    ? 'Present on rendered page.'
+                    : 'No ' + path + ' link found on this rendered page.'
             );
         }
 
@@ -795,19 +795,19 @@
             add(
                 'block',
                 'YouTube embed',
-                invalidYoutube.length + ' URL YouTube iframe không hợp lệ.'
+                invalidYoutube.length + ' invalid YouTube iframe URL(s).'
             );
         } else if (youtube.length) {
             add(
                 'pass',
                 'YouTube embed',
-                youtube.length + ' YouTube iframe hợp lệ đã được render.'
+                youtube.length + ' valid YouTube iframe(s) rendered.'
             );
         } else {
             add(
                 'pass',
                 'YouTube embed',
-                'Không phát hiện YouTube iframe; điều này hoàn toàn bình thường.'
+                'No YouTube iframe detected; this is fine.'
             );
         }
 
@@ -835,21 +835,21 @@
             if (broken.length) {
                 add(
                     'block',
-                    'Ảnh đã render',
-                    broken.length + ' ảnh tải thất bại.'
+                    'Rendered images',
+                    broken.length + ' image(s) failed to load.'
                 );
             } else {
                 add(
                     'pass',
-                    'Ảnh đã render',
-                    imageUrls.length + ' ảnh đã tải thành công.'
+                    'Rendered images',
+                    imageUrls.length + ' image(s) loaded successfully.'
                 );
             }
         } else {
             add(
                 'pass',
-                'Ảnh đã render',
-                'Không phát hiện ảnh. Bài viết không bắt buộc phải có ảnh.'
+                'Rendered images',
+                'No images detected. Images are not required.'
             );
         }
 
@@ -859,10 +859,10 @@
 
         add(
             'warn',
-            'Mật độ quảng cáo cuối cùng',
+            'Final ad density',
             ads +
-                ' phần tử quảng cáo/ad-placeholder được phát hiện. ' +
-                'Vẫn cần người kiểm tra vì mật độ quảng cáo thực tế có thể thay đổi khi Google phân phối.'
+                ' ad/ad-placeholder element(s) detected. ' +
+                'Human review is still required because actual served-ad density can change.'
         );
 
         return {
@@ -905,11 +905,11 @@
                 'pass',
                 'Quét nội dung cục bộ',
                 local.words +
-                    ' từ • ' +
+                    ' words • ' +
                     local.images +
-                    ' ảnh trong nội dung • ' +
+                    ' body image(s) • ' +
                     local.youtube +
-                    ' YouTube embed.'
+                    ' YouTube embed(s).'
             );
 
             local.warnings.forEach(message =>
@@ -956,26 +956,26 @@
 
             renderAi(ai);
 
-            const aiKết quả tổng thể =
+            const aiOverall =
                 String(ai.overall || 'NEED_REVIEW').toUpperCase();
 
-            if (aiKết quả tổng thể === 'ĐẠT') {
+            if (aiOverall === 'PASS') {
                 addProgress(
                     'pass',
                     'Đánh giá chính sách bằng Gemini AI',
-                    'ĐẠT'
+                    'PASS'
                 );
-            } else if (aiKết quả tổng thể === 'HIGH_RISK') {
+            } else if (aiOverall === 'HIGH_RISK') {
                 addProgress(
                     'block',
                     'Đánh giá chính sách bằng Gemini AI',
-                    'RỦI RO CAO'
+                    'HIGH RISK'
                 );
             } else {
                 addProgress(
                     'warn',
                     'Đánh giá chính sách bằng Gemini AI',
-                    'CẦN XEM LẠI'
+                    'NEED REVIEW'
                 );
             }
 
@@ -992,26 +992,26 @@
                 addProgress(
                     'block',
                     'Kiểm tra Preview / Live',
-                    live.blocks + ' lỗi cần xử lý trước.'
+                    live.blocks + ' blocking issue(s).'
                 );
             } else if (live.warnings > 0) {
                 addProgress(
                     'warn',
                     'Kiểm tra Preview / Live',
-                    live.warnings + ' mục cần xem lại.'
+                    live.warnings + ' review item(s).'
                 );
             } else {
                 addProgress(
                     'pass',
                     'Kiểm tra Preview / Live',
-                    'ĐẠT'
+                    'PASS'
                 );
             }
 
             const hasLocalWarnings = localAfterSave.warnings.length > 0;
 
             if (
-                aiKết quả tổng thể === 'HIGH_RISK' ||
+                aiOverall === 'HIGH_RISK' ||
                 live.blocks > 0
             ) {
                 finalResult = 'HIGH_RISK';
@@ -1020,7 +1020,7 @@
                 manualWrap.classList.add('open');
 
             } else if (
-                aiKết quả tổng thể === 'NEED_REVIEW' ||
+                aiOverall === 'NEED_REVIEW' ||
                 live.warnings > 0 ||
                 hasLocalWarnings
             ) {
@@ -1030,7 +1030,7 @@
                 manualWrap.classList.add('open');
 
             } else {
-                finalResult = 'ĐẠT';
+                finalResult = 'PASS';
                 setStatus('ĐẠT', 'pass');
                 manualReviewRequired = false;
             }
