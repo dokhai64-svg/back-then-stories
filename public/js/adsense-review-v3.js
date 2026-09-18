@@ -879,7 +879,7 @@
             adElements.length;
 
         const publisherRoot =
-            articleBody
+            main
             || doc.querySelector('article')
             || doc.querySelector('main')
             || doc.body;
