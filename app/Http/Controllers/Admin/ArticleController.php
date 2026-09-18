@@ -285,6 +285,18 @@ class ArticleController extends Controller
             $chaptersJson
         );
 
+        if ($request->boolean('adsense_auto_draft')) {
+            return redirect()
+                ->route(
+                    'admin.articles.edit',
+                    $article
+                )
+                ->with(
+                    'ok',
+                    'Draft saved for AdSense safety check.'
+                );
+        }
+
         return redirect()
             ->route(
                 'admin.articles.index',
@@ -457,6 +469,18 @@ class ArticleController extends Controller
         $this->syncAliasSite(
             $article
         );
+
+        if ($request->boolean('adsense_auto_draft')) {
+            return redirect()
+                ->route(
+                    'admin.articles.edit',
+                    $article
+                )
+                ->with(
+                    'ok',
+                    'Draft saved for AdSense safety check.'
+                );
+        }
 
         return redirect()
             ->route(
