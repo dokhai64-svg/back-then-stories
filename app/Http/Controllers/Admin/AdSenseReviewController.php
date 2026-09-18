@@ -13,6 +13,13 @@ class AdSenseReviewController extends Controller
 {
     public function review(Request $request)
     {
+        /*
+         * The policy review can take longer than PHP's default 30 seconds.
+         * Extend only this request; normal CMS requests are unchanged.
+         */
+        @ini_set('max_execution_time', '90');
+        @set_time_limit(90);
+
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'body' => ['required', 'string', 'max:60000'],
@@ -38,59 +45,37 @@ class AdSenseReviewController extends Controller
             ], 422);
         }
 
-        $bodyText = Str::limit($bodyText, 30000, '');
-        $sourceText = Str::limit($sourceText, 24000, '');
+        $bodyText = Str::limit($bodyText, 16000, '');
+        $sourceText = Str::limit($sourceText, 8000, '');
 
         $youtubeCount = (int) ($data['youtube_count'] ?? 0);
         $imageCount = (int) ($data['image_count'] ?? 0);
 
         $prompt = <<<'PROMPT'
-You are a conservative editorial policy reviewer for a publisher preparing an article for Google AdSense.
+You are a conservative editorial reviewer helping a publisher reduce Google AdSense policy risk.
 
-IMPORTANT LIMITS
-- You are NOT Google and must never say an article or site is "AdSense approved."
-- You cannot guarantee approval or rejection.
-- Do not invent a Google minimum word count.
-- Do not treat AI output as proof of copyright ownership or licensing.
-- Do not claim plagiarism unless a supplied SOURCE/TRANSCRIPT provides evidence for comparison.
-- If no SOURCE/TRANSCRIPT is supplied, evaluate only internal warning signs and say comparison is unavailable.
+Do not say Google will approve or reject the site.
+Do not invent a minimum word count.
+Do not claim copyright ownership, licensing, or plagiarism unless evidence is supplied.
 
-POLICY CONCEPTS TO APPLY
-1. Google-served ads are not allowed on screens with embedded or copied content from others without additional commentary, curation, or otherwise adding value.
-2. Examples of replicated-content risk include mirroring, framing, scraping, rewriting without added value, automatically generated content without manual review/curation, slight modification or synonym substitution, and sites dedicated to embedded media without substantial added value.
-3. Pages should have real publisher-content and should not be unfinished, under construction, empty, or low value.
-4. Advertising or paid promotional material must not exceed publisher-content on a monetized screen.
-5. Intellectual-property rights must be respected. You cannot verify image/video rights from article text alone.
-6. Manual editorial review matters. AI-generated or AI-rewritten material should not be treated as automatically safe.
+Review the article for:
+- genuine publisher value vs thin/replicated/light-rewrite content
+- over-reliance on embedded video
+- unfinished/low-value presentation
+- factual claims that deserve manual verification
+- media/copyright items that require human review
+- practical fixes before publishing
 
-REVIEW GOAL
-Judge whether this article appears to provide genuine publisher value and identify issues a human should fix or review before publishing.
+Use these statuses only:
+PASS = no major issue is apparent.
+NEED_REVIEW = material human review is needed.
+HIGH_RISK = strong signs of low-value/replicated/light-rewrite content or another serious unresolved risk.
 
-OUTPUT RULES
-Return JSON only.
+Keep every text field brief: 1-2 sentences.
+Arrays: maximum 5 short items.
+If no source/transcript is supplied, say direct source comparison is unavailable.
 
-overall:
-- PASS = no major replicated-content/value problem is apparent from the supplied material.
-- NEED_REVIEW = one or more material issues require human review, but the article is not clearly high-risk.
-- HIGH_RISK = supplied evidence strongly indicates copied/lightly rewritten/transcript-like/low-value content or serious unresolved policy risk.
-
-For every field:
-- Be concise and specific.
-- Point to the actual issue.
-- Do not fabricate facts.
-- Keep copyright/media conclusions manual unless explicit licensing evidence is supplied.
-
-SOURCE COMPARISON
-If SOURCE/TRANSCRIPT is supplied:
-- Compare structure, sequencing, phrasing patterns, and substantive value added.
-- Do NOT penalize factual overlap by itself.
-- Distinguish facts from copied expression.
-- Call out light rewrite when the article follows the source too closely without meaningful added value.
-
-If SOURCE/TRANSCRIPT is not supplied:
-- State that direct originality comparison could not be performed.
-
-Return exactly these fields:
+Return JSON only with exactly:
 overall
 original_value
 replicated_content_risk
@@ -156,128 +141,244 @@ PROMPT;
         ];
 
         /*
-         * Railway/FrankenPHP currently enforces a 30-second PHP execution
-         * limit for this request. Keep this endpoint to one configured
-         * Gemini model and a sub-30-second HTTP timeout so a slow AI call
-         * returns a controlled error instead of killing PHP.
+         * V3.2 FAST REVIEW
+         *
+         * Use one configured Flash model and GenerateContent directly.
+         * The existing CMS already uses the same Gemini API key/model family.
+         * One request avoids long fallback chains and keeps the one-click flow
+         * predictable.
          */
-        $models = [
-            config('gemini.model', 'gemini-3.8-flash'),
-        ];
+        $model = trim(
+            (string) config(
+                'gemini.model',
+                'gemini-3.8-flash'
+            )
+        );
 
-        $lastMessage = 'Gemini is temporarily unavailable. Please try again.';
+        if ($model === '') {
+            $model = 'gemini-3.8-flash';
+        }
 
         try {
-            foreach ($models as $model) {
-                $response = Http::withHeaders([
-                        'x-goog-api-key' => $apiKey,
-                    ])
-                    ->acceptJson()
-                    ->asJson()
-                    ->connectTimeout(5)
-                    ->timeout(24)
-                    ->post(
-                        'https://generativelanguage.googleapis.com/v1beta/interactions',
-                        [
-                            'model' => $model,
-                            'input' => $fullPrompt,
-                            'response_format' => [
-                                'type' => 'text',
-                                'mime_type' => 'application/json',
-                                'schema' => $schema,
+            $response = Http::withHeaders([
+                    'x-goog-api-key' => $apiKey,
+                ])
+                ->acceptJson()
+                ->asJson()
+                ->connectTimeout(5)
+                ->timeout(55)
+                ->post(
+                    'https://generativelanguage.googleapis.com/v1beta/models/'
+                    . rawurlencode($model)
+                    . ':generateContent',
+                    [
+                        'contents' => [
+                            [
+                                'role' => 'user',
+                                'parts' => [
+                                    [
+                                        'text' => $fullPrompt,
+                                    ],
+                                ],
                             ],
-                        ]
-                    );
+                        ],
+                        'generationConfig' => [
+                            'responseMimeType' =>
+                                'application/json',
+                            'responseSchema' =>
+                                $schema,
+                            'temperature' => 0.1,
+                            'maxOutputTokens' => 1800,
+                        ],
+                    ]
+                );
 
-                if (!$response->successful()) {
-                    $message = $response->json('error.message') ?: 'Gemini request failed.';
-                    $lastMessage = $message;
+            if (!$response->successful()) {
+                $message =
+                    $response->json('error.message')
+                    ?: 'Gemini request failed.';
 
-                    logger()->warning('Gemini AdSense review request failed', [
+                logger()->warning(
+                    'Gemini AdSense V3.2 request failed',
+                    [
                         'model' => $model,
                         'status' => $response->status(),
                         'message' => $message,
-                    ]);
-
-                    $lower = mb_strtolower($message);
-
-                    $isTransient =
-                        in_array($response->status(), [429, 500, 502, 503, 504], true) ||
-                        str_contains($lower, 'high demand') ||
-                        str_contains($lower, 'temporarily') ||
-                        str_contains($lower, 'overloaded') ||
-                        str_contains($lower, 'resource exhausted') ||
-                        str_contains($lower, 'resource_exhausted') ||
-                        str_contains($lower, 'unavailable');
-
-                    if ($isTransient) {
-                        continue;
-                    }
-
-                    return response()->json([
-                        'message' => $message,
-                    ], 502);
-                }
-
-                $payload = $response->json();
-                $outputText = $this->extractOutputText($payload);
-
-                if (trim($outputText) === '') {
-                    $lastMessage = 'Gemini returned no usable text.';
-                    continue;
-                }
-
-                $result = json_decode(trim($outputText), true);
-
-                if (!is_array($result)) {
-                    $lastMessage = 'Gemini returned an invalid policy-review response.';
-                    continue;
-                }
-
-                $overall = strtoupper(trim((string) ($result['overall'] ?? '')));
-
-                if (!in_array($overall, ['PASS', 'NEED_REVIEW', 'HIGH_RISK'], true)) {
-                    $lastMessage = 'Gemini returned an invalid review status.';
-                    continue;
-                }
+                    ]
+                );
 
                 return response()->json([
-                    'overall' => $overall,
-                    'original_value' => $this->cleanLine($result['original_value'] ?? ''),
-                    'replicated_content_risk' => $this->cleanLine($result['replicated_content_risk'] ?? ''),
-                    'source_comparison' => $this->cleanLine($result['source_comparison'] ?? ''),
-                    'youtube_embed_assessment' => $this->cleanLine($result['youtube_embed_assessment'] ?? ''),
-                    'fact_check_items' => $this->cleanArray($result['fact_check_items'] ?? []),
-                    'media_rights_items' => $this->cleanArray($result['media_rights_items'] ?? []),
-                    'policy_flags' => $this->cleanArray($result['policy_flags'] ?? []),
-                    'required_fixes' => $this->cleanArray($result['required_fixes'] ?? []),
-                    'review_note' => $this->cleanLine($result['review_note'] ?? ''),
-                    'ai_model' => $model,
-                ]);
+                    'message' =>
+                        'Gemini review failed: '
+                        . Str::limit(
+                            (string) $message,
+                            260,
+                            ''
+                        ),
+                ], 502);
+            }
+
+            $payload = $response->json();
+            $outputText = '';
+
+            foreach (
+                (
+                    $payload['candidates'][0]
+                    ['content']['parts']
+                    ?? []
+                ) as $part
+            ) {
+                if (
+                    isset($part['text']) &&
+                    is_string($part['text'])
+                ) {
+                    $outputText .=
+                        $part['text'];
+                }
+            }
+
+            $outputText = trim($outputText);
+
+            if ($outputText === '') {
+                return response()->json([
+                    'message' =>
+                        'Gemini returned no usable policy-review text.',
+                ], 502);
+            }
+
+            $outputText =
+                preg_replace(
+                    '/^```(?:json)?\s*|\s*```$/i',
+                    '',
+                    $outputText
+                );
+
+            $result =
+                json_decode(
+                    trim(
+                        (string) $outputText
+                    ),
+                    true
+                );
+
+            if (!is_array($result)) {
+                return response()->json([
+                    'message' =>
+                        'Gemini returned an invalid policy-review response.',
+                ], 502);
+            }
+
+            $overall =
+                strtoupper(
+                    trim(
+                        (string) (
+                            $result['overall']
+                            ?? ''
+                        )
+                    )
+                );
+
+            if (
+                !in_array(
+                    $overall,
+                    [
+                        'PASS',
+                        'NEED_REVIEW',
+                        'HIGH_RISK',
+                    ],
+                    true
+                )
+            ) {
+                return response()->json([
+                    'message' =>
+                        'Gemini returned an invalid review status.',
+                ], 502);
             }
 
             return response()->json([
-                'message' => $lastMessage,
-            ], 503);
+                'overall' =>
+                    $overall,
+                'original_value' =>
+                    $this->cleanLine(
+                        $result['original_value']
+                        ?? ''
+                    ),
+                'replicated_content_risk' =>
+                    $this->cleanLine(
+                        $result['replicated_content_risk']
+                        ?? ''
+                    ),
+                'source_comparison' =>
+                    $this->cleanLine(
+                        $result['source_comparison']
+                        ?? ''
+                    ),
+                'youtube_embed_assessment' =>
+                    $this->cleanLine(
+                        $result['youtube_embed_assessment']
+                        ?? ''
+                    ),
+                'fact_check_items' =>
+                    $this->cleanArray(
+                        $result['fact_check_items']
+                        ?? []
+                    ),
+                'media_rights_items' =>
+                    $this->cleanArray(
+                        $result['media_rights_items']
+                        ?? []
+                    ),
+                'policy_flags' =>
+                    $this->cleanArray(
+                        $result['policy_flags']
+                        ?? []
+                    ),
+                'required_fixes' =>
+                    $this->cleanArray(
+                        $result['required_fixes']
+                        ?? []
+                    ),
+                'review_note' =>
+                    $this->cleanLine(
+                        $result['review_note']
+                        ?? ''
+                    ),
+                'ai_model' =>
+                    $model,
+                'ai_api' =>
+                    'generateContent',
+            ]);
 
         } catch (ConnectionException $e) {
             logger()->warning(
-                'Gemini AdSense review timed out',
+                'Gemini AdSense V3.2 timed out',
                 [
-                    'message' => $e->getMessage(),
+                    'message' =>
+                        $e->getMessage(),
                 ]
             );
 
             return response()->json([
                 'message' =>
-                    'Gemini review timed out after 24 seconds. Please run the check again.',
+                    'Gemini review timed out. Please run the check again.',
             ], 504);
 
         } catch (Throwable $e) {
             report($e);
 
+            logger()->error(
+                'Gemini AdSense V3.2 server error',
+                [
+                    'exception' =>
+                        get_class($e),
+                    'message' =>
+                        $e->getMessage(),
+                ]
+            );
+
             return response()->json([
-                'message' => 'AI AdSense review failed. Please try again.',
+                'message' =>
+                    'AI AdSense review failed. Please try again.',
             ], 500);
         }
     }
@@ -309,38 +410,4 @@ PROMPT;
         )));
     }
 
-    private function extractOutputText(array $payload): string
-    {
-        $outputText = '';
-
-        foreach (($payload['steps'] ?? []) as $step) {
-            if (($step['type'] ?? null) !== 'model_output') {
-                continue;
-            }
-
-            foreach (($step['content'] ?? []) as $content) {
-                if (
-                    ($content['type'] ?? null) === 'text' &&
-                    isset($content['text']) &&
-                    is_string($content['text'])
-                ) {
-                    $outputText .= $content['text'];
-                }
-            }
-        }
-
-        if (trim($outputText) === '') {
-            foreach (($payload['outputs'] ?? []) as $output) {
-                if (
-                    ($output['type'] ?? null) === 'text' &&
-                    isset($output['text']) &&
-                    is_string($output['text'])
-                ) {
-                    $outputText .= $output['text'];
-                }
-            }
-        }
-
-        return $outputText;
-    }
 }
