@@ -115,10 +115,12 @@
     border-radius:12px;
     background:#fafafa;
 }
+
 .chapter-entry h2{
     margin:0 0 10px;
     font-size:24px;
 }
+
 .chapter-start{
     display:inline-flex;
     align-items:center;
@@ -131,12 +133,51 @@
     text-decoration:none !important;
     font-weight:700;
 }
+
 .chapter-list{
     margin:16px 0 0;
     padding-left:22px;
 }
+
 .chapter-list li{
     margin:7px 0;
+}
+
+/*
+|--------------------------------------------------------------------------
+| AdSense-safe visual separation
+|--------------------------------------------------------------------------
+|
+| These margins are conservative site UX rules, not official Google pixel
+| thresholds. Their purpose is to make ads visually distinct from article
+| controls, video/player areas, chapter navigation and recommendation links.
+|
+*/
+.policy-ad-zone {
+    clear: both;
+    width: 100%;
+    margin: 52px 0;
+    padding: 4px 0;
+}
+
+.policy-ad-zone--in-body {
+    margin: 48px 0;
+}
+
+.policy-ad-zone--after-interactive {
+    margin-top: 64px;
+}
+
+.policy-ad-zone--before-related {
+    margin-bottom: 64px;
+}
+
+.article-related-video {
+    margin: 42px 0 0;
+}
+
+.article-related-video a {
+    display: inline-block;
 }
 
 @media (max-width: 900px) {
@@ -148,6 +189,20 @@
 @media (max-width: 560px) {
     .article-recommendations__grid {
         grid-template-columns: 1fr;
+    }
+
+    .policy-ad-zone,
+    .policy-ad-zone--in-body {
+        margin-top: 56px;
+        margin-bottom: 56px;
+    }
+
+    .policy-ad-zone--after-interactive {
+        margin-top: 68px;
+    }
+
+    .policy-ad-zone--before-related {
+        margin-bottom: 68px;
     }
 }
 </style>
@@ -187,10 +242,270 @@
         >
     @endif
 
-    @include('partials.ad', ['key' => 'banner_top'])
+    @php
+        /*
+        |--------------------------------------------------------------------------
+        | Conservative automatic ad placement
+        |--------------------------------------------------------------------------
+        |
+        | IMPORTANT:
+        | These word/paragraph thresholds are INTERNAL SITE HEURISTICS.
+        | They are not Google AdSense rules.
+        |
+        | Google policy focuses on:
+        | - ads/promotional material not exceeding publisher-content,
+        | - avoiding deceptive placements,
+        | - avoiding accidental-click layouts near navigation/video/buttons.
+        |
+        | Site strategy:
+        | - Short normal article: 1 bottom slot.
+        | - Medium normal article: 1 in-body + 1 bottom slot.
+        | - Long normal article: 2 in-body + 1 bottom slot.
+        | - Chapter landing page: keep ads out of the immediate chapter-start
+        |   navigation area; use a separated bottom slot only.
+        */
+
+        $bodyHtml =
+            (string) (
+                $article->body
+                ?? ''
+            );
+
+        $plainBody =
+            preg_replace(
+                '/\s+/u',
+                ' ',
+                html_entity_decode(
+                    strip_tags($bodyHtml),
+                    ENT_QUOTES | ENT_HTML5,
+                    'UTF-8'
+                )
+            );
+
+        preg_match_all(
+            '/[\p{L}\p{N}]+(?:[’\'-][\p{L}\p{N}]+)*/u',
+            (string) $plainBody,
+            $wordMatches
+        );
+
+        $bodyWordCount =
+            count(
+                $wordMatches[0]
+                ?? []
+            );
+
+        $bodyChunks =
+            preg_split(
+                '/(?<=<\/p>)/i',
+                $bodyHtml,
+                -1,
+                PREG_SPLIT_NO_EMPTY
+            );
+
+        if (
+            !is_array($bodyChunks)
+            || !$bodyChunks
+        ) {
+            $bodyChunks = [
+                $bodyHtml,
+            ];
+        }
+
+        $bodyChunkCount =
+            count(
+                $bodyChunks
+            );
+
+        $isChapterLanding =
+            $article->content_mode === 'chapter'
+            && $article->chapters->count();
+
+        $chunkHasInteractiveMedia =
+            static function (
+                string $html
+            ): bool {
+                return (bool) preg_match(
+                    '/<(iframe|video|audio|button|select|input|form)\b|youtube\.com|youtu\.be|vimeo\.com/i',
+                    $html
+                );
+            };
+
+        $pickSafeBoundary =
+            static function (
+                array $chunks,
+                int $target,
+                array $used = []
+            ) use (
+                $chunkHasInteractiveMedia
+            ): ?int {
+                $count = count($chunks);
+
+                if ($count < 5) {
+                    return null;
+                }
+
+                $min = 2;
+                $max = $count - 2;
+
+                $target =
+                    max(
+                        $min,
+                        min(
+                            $max,
+                            $target
+                        )
+                    );
+
+                $offsets = [
+                    0,
+                    1,
+                    -1,
+                    2,
+                    -2,
+                    3,
+                    -3,
+                    4,
+                    -4,
+                ];
+
+                foreach ($offsets as $offset) {
+                    $boundary =
+                        $target
+                        + $offset;
+
+                    if (
+                        $boundary < $min
+                        || $boundary > $max
+                    ) {
+                        continue;
+                    }
+
+                    $tooCloseToUsed = false;
+
+                    foreach ($used as $alreadyUsed) {
+                        if (
+                            abs(
+                                $boundary
+                                - $alreadyUsed
+                            ) < 2
+                        ) {
+                            $tooCloseToUsed = true;
+                            break;
+                        }
+                    }
+
+                    if ($tooCloseToUsed) {
+                        continue;
+                    }
+
+                    $before =
+                        (string) (
+                            $chunks[$boundary - 1]
+                            ?? ''
+                        );
+
+                    $after =
+                        (string) (
+                            $chunks[$boundary]
+                            ?? ''
+                        );
+
+                    if (
+                        $chunkHasInteractiveMedia($before)
+                        || $chunkHasInteractiveMedia($after)
+                    ) {
+                        continue;
+                    }
+
+                    return $boundary;
+                }
+
+                return null;
+            };
+
+        $inBodyAdSlots = [];
+
+        if (
+            !$isChapterLanding
+            && $bodyChunkCount >= 6
+            && $bodyWordCount >= 450
+        ) {
+            $firstTarget =
+                (int) round(
+                    $bodyChunkCount
+                    * (
+                        $bodyWordCount >= 900
+                            ? 0.30
+                            : 0.45
+                    )
+                );
+
+            $firstBoundary =
+                $pickSafeBoundary(
+                    $bodyChunks,
+                    $firstTarget
+                );
+
+            if ($firstBoundary) {
+                $inBodyAdSlots[$firstBoundary] = 'banner_top';
+            }
+
+            if (
+                $bodyWordCount >= 900
+                && $bodyChunkCount >= 9
+            ) {
+                $secondTarget =
+                    (int) round(
+                        $bodyChunkCount
+                        * 0.65
+                    );
+
+                $secondBoundary =
+                    $pickSafeBoundary(
+                        $bodyChunks,
+                        $secondTarget,
+                        array_keys($inBodyAdSlots)
+                    );
+
+                if ($secondBoundary) {
+                    $inBodyAdSlots[$secondBoundary] = 'banner_mid';
+                }
+            }
+        }
+
+        $showBottomAd =
+            $bodyWordCount >= 220
+            || $isChapterLanding;
+    @endphp
 
     <div class="body">
-        {!! $article->body !!}
+        @foreach($bodyChunks as $chunkIndex => $bodyChunk)
+
+            {!! $bodyChunk !!}
+
+            @php
+                $boundary =
+                    $chunkIndex + 1;
+
+                $slotKey =
+                    $inBodyAdSlots[$boundary]
+                    ?? null;
+            @endphp
+
+            @if($slotKey)
+                <div
+                    class="policy-ad-zone policy-ad-zone--in-body"
+                    data-ad-policy-zone="in-body"
+                    aria-label="Advertisement"
+                >
+                    @include(
+                        'partials.ad',
+                        ['key' => $slotKey]
+                    )
+                </div>
+            @endif
+
+        @endforeach
     </div>
 
     @if(
@@ -261,10 +576,8 @@
         </section>
     @endif
 
-    @include('partials.ad', ['key' => 'banner_mid'])
-
     @if($article->youtube_url)
-        <p>
+        <p class="article-related-video">
             <a
                 href="{{ $article->youtube_url }}"
                 target="_blank"
@@ -275,7 +588,18 @@
         </p>
     @endif
 
-    @include('partials.ad', ['key' => 'banner_bot'])
+    @if($showBottomAd)
+        <div
+            class="policy-ad-zone policy-ad-zone--after-interactive policy-ad-zone--before-related"
+            data-ad-policy-zone="article-bottom"
+            aria-label="Advertisement"
+        >
+            @include(
+                'partials.ad',
+                ['key' => 'banner_bot']
+            )
+        </div>
+    @endif
 
     @if($related->count())
         <section
