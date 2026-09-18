@@ -1130,6 +1130,735 @@
         };
     }
 
+
+    /*
+     * V3.6 PIXEL AD PLACEMENT AUDIT
+     *
+     * Google does not publish a universal minimum pixel distance between an
+     * ad and every interactive element. The values below are conservative
+     * INTERNAL heuristics only. The policy target is to avoid accidental
+     * clicks, misleading placement, overlays, and ads interfering with user
+     * interactions.
+     *
+     * The audit renders a SCRIPT-FREE copy of Preview inside an off-screen
+     * iframe. Removing scripts prevents this audit from intentionally loading
+     * Google ads in a hidden frame while still allowing CSS/layout measurement.
+     */
+    async function runPixelAdAudit() {
+        const previewLink = getPreviewLink();
+
+        if (!previewLink?.href) {
+            return {
+                rows: [
+                    step(
+                        'warn',
+                        'Kiểm tra vị trí quảng cáo theo pixel',
+                        'Không có Preview URL để đo bố cục thực tế.'
+                    )
+                ],
+                blocks: 0,
+                warnings: 1
+            };
+        }
+
+        let html = '';
+
+        try {
+            const response = await fetch(previewLink.href, {
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'text/html'
+                }
+            });
+
+            if (!response.ok) {
+                return {
+                    rows: [
+                        step(
+                            'warn',
+                            'Kiểm tra vị trí quảng cáo theo pixel',
+                            'Không tải được Preview để đo pixel (HTTP '
+                                + response.status
+                                + ').'
+                        )
+                    ],
+                    blocks: 0,
+                    warnings: 1
+                };
+            }
+
+            html = await response.text();
+
+        } catch (error) {
+            return {
+                rows: [
+                    step(
+                        'warn',
+                        'Kiểm tra vị trí quảng cáo theo pixel',
+                        'Không thể tải Preview để đo pixel.'
+                    )
+                ],
+                blocks: 0,
+                warnings: 1
+            };
+        }
+
+        function buildSafeSrcdoc(rawHtml, baseUrl) {
+            const parser = new DOMParser();
+            const parsed = parser.parseFromString(rawHtml, 'text/html');
+
+            /*
+             * Do not execute page/ad scripts inside the audit frame.
+             */
+            parsed
+                .querySelectorAll('script')
+                .forEach(el => el.remove());
+
+            /*
+             * Preserve iframe boxes (YouTube/video placement) but do not load
+             * the remote iframe itself during the hidden measurement.
+             */
+            parsed
+                .querySelectorAll('iframe[src]')
+                .forEach(frame => {
+                    frame.setAttribute(
+                        'data-pixel-audit-src',
+                        frame.getAttribute('src') || ''
+                    );
+
+                    frame.removeAttribute('src');
+                });
+
+            /*
+             * Remove refresh redirects if a page ever contains one.
+             */
+            parsed
+                .querySelectorAll('meta[http-equiv="refresh" i]')
+                .forEach(el => el.remove());
+
+            const base =
+                parsed.createElement('base');
+
+            base.href =
+                baseUrl;
+
+            parsed.head.prepend(base);
+
+            return '<!doctype html>\n'
+                + parsed.documentElement.outerHTML;
+        }
+
+        function isVisible(win, el) {
+            if (!el) {
+                return false;
+            }
+
+            const style =
+                win.getComputedStyle(el);
+
+            const rect =
+                el.getBoundingClientRect();
+
+            return (
+                style.display !== 'none'
+                && style.visibility !== 'hidden'
+                && Number(style.opacity || 1) > 0
+                && rect.width > 2
+                && rect.height > 2
+            );
+        }
+
+        function rectGap(a, b) {
+            const horizontal =
+                Math.max(
+                    a.left - b.right,
+                    b.left - a.right,
+                    0
+                );
+
+            const vertical =
+                Math.max(
+                    a.top - b.bottom,
+                    b.top - a.bottom,
+                    0
+                );
+
+            return Math.sqrt(
+                horizontal * horizontal
+                + vertical * vertical
+            );
+        }
+
+        function overlaps(a, b) {
+            return !(
+                a.right <= b.left
+                || a.left >= b.right
+                || a.bottom <= b.top
+                || a.top >= b.bottom
+            );
+        }
+
+        function labelInteractive(el) {
+            if (!el) {
+                return 'vùng tương tác';
+            }
+
+            if (
+                el.matches(
+                    'iframe[data-pixel-audit-src*="youtube"], video, audio'
+                )
+            ) {
+                return 'video / trình phát';
+            }
+
+            if (
+                el.matches(
+                    '.chapter-start, .chapter-list a'
+                )
+            ) {
+                return 'điều hướng Chapter';
+            }
+
+            if (
+                el.matches(
+                    '.article-recommendations a'
+                )
+            ) {
+                return 'Related Stories';
+            }
+
+            if (
+                el.matches(
+                    'nav, nav a, [role="navigation"], [role="navigation"] a'
+                )
+            ) {
+                return 'menu / navigation';
+            }
+
+            if (
+                el.matches(
+                    'button, [role="button"], select, input, textarea, summary'
+                )
+            ) {
+                return 'nút / điều khiển';
+            }
+
+            const text =
+                (el.textContent || '')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .slice(0, 60);
+
+            return text
+                ? '"' + text + '"'
+                : 'liên kết / vùng tương tác';
+        }
+
+        function interactiveCandidates(doc, win) {
+            const strongSelector = [
+                'button',
+                '[role="button"]',
+                'select',
+                'input',
+                'textarea',
+                'summary',
+                'nav',
+                'nav a',
+                '[role="navigation"]',
+                '[role="navigation"] a',
+                '.chapter-start',
+                '.chapter-list a',
+                '.article-recommendations a',
+                'iframe[data-pixel-audit-src*="youtube"]',
+                'iframe[data-pixel-audit-src*="youtube-nocookie"]',
+                'video',
+                'audio'
+            ].join(',');
+
+            const strong =
+                [...doc.querySelectorAll(strongSelector)];
+
+            /*
+             * Include text links only when their wording indicates a stronger
+             * action/navigation intent. Ordinary editorial hyperlinks are not
+             * automatically treated as accidental-click risks.
+             */
+            const actionLinks =
+                [...doc.querySelectorAll('a[href]')]
+                    .filter(link => {
+                        const text =
+                            (link.textContent || '')
+                                .replace(/\s+/g, ' ')
+                                .trim()
+                                .toLowerCase();
+
+                        return /(^|\b)(next|previous|prev|download|play|watch|continue|read more|menu|start chapter|tiếp|trước|tải xuống|phát|xem|đọc tiếp|bắt đầu)(\b|$)/i
+                            .test(text);
+                    });
+
+            return [...new Set([
+                ...strong,
+                ...actionLinks
+            ])]
+                .filter(el =>
+                    isVisible(
+                        win,
+                        el
+                    )
+                );
+        }
+
+        function adCandidates(doc, win) {
+            /*
+             * Prefer our policy wrapper because it represents the complete
+             * visual ad zone and avoids double-counting the ad element inside.
+             */
+            const policyZones =
+                [...doc.querySelectorAll(
+                    '.policy-ad-zone'
+                )]
+                    .filter(el =>
+                        isVisible(
+                            win,
+                            el
+                        )
+                    );
+
+            if (policyZones.length) {
+                return policyZones;
+            }
+
+            return [
+                ...doc.querySelectorAll(
+                    '[data-gam-slot], ins.adsbygoogle, .ad, [data-ad-slot], [data-ad-unit]'
+                )
+            ]
+                .filter(el =>
+                    isVisible(
+                        win,
+                        el
+                    )
+                );
+        }
+
+        async function auditViewport({
+            width,
+            height,
+            name,
+            warnDistance
+        }) {
+            const iframe =
+                document.createElement('iframe');
+
+            iframe.setAttribute(
+                'aria-hidden',
+                'true'
+            );
+
+            iframe.tabIndex = -1;
+
+            Object.assign(
+                iframe.style,
+                {
+                    position: 'fixed',
+                    left: '-20000px',
+                    top: '0',
+                    width: width + 'px',
+                    height: height + 'px',
+                    border: '0',
+                    opacity: '0',
+                    pointerEvents: 'none',
+                    zIndex: '-1'
+                }
+            );
+
+            const safeHtml =
+                buildSafeSrcdoc(
+                    html,
+                    previewLink.href
+                );
+
+            document.body.appendChild(
+                iframe
+            );
+
+            try {
+                await new Promise(
+                    (resolve, reject) => {
+                        const timeout =
+                            setTimeout(
+                                () => reject(
+                                    new Error(
+                                        'Pixel audit frame timeout'
+                                    )
+                                ),
+                                10000
+                            );
+
+                        iframe.addEventListener(
+                            'load',
+                            () => {
+                                clearTimeout(
+                                    timeout
+                                );
+
+                                resolve();
+                            },
+                            {
+                                once: true
+                            }
+                        );
+
+                        iframe.srcdoc =
+                            safeHtml;
+                    }
+                );
+
+                const doc =
+                    iframe.contentDocument;
+
+                const win =
+                    iframe.contentWindow;
+
+                if (
+                    !doc
+                    || !win
+                ) {
+                    throw new Error(
+                        'Pixel audit frame unavailable'
+                    );
+                }
+
+                try {
+                    if (
+                        doc.fonts
+                        && doc.fonts.ready
+                    ) {
+                        await Promise.race([
+                            doc.fonts.ready,
+                            new Promise(resolve =>
+                                setTimeout(
+                                    resolve,
+                                    1500
+                                )
+                            )
+                        ]);
+                    }
+                } catch (e) {}
+
+                /*
+                 * Give linked CSS and images a brief moment to affect layout.
+                 */
+                await new Promise(resolve =>
+                    setTimeout(
+                        resolve,
+                        450
+                    )
+                );
+
+                const ads =
+                    adCandidates(
+                        doc,
+                        win
+                    );
+
+                const interactives =
+                    interactiveCandidates(
+                        doc,
+                        win
+                    );
+
+                if (!ads.length) {
+                    return {
+                        level: 'pass',
+                        title:
+                            'Pixel Audit — '
+                            + name,
+                        detail:
+                            'Không phát hiện ad slot hiển thị ở viewport '
+                            + width
+                            + 'px.',
+                        blocks: 0,
+                        warnings: 0
+                    };
+                }
+
+                let minGap =
+                    Infinity;
+
+                let nearestLabel =
+                    '';
+
+                let overlapCount =
+                    0;
+
+                let overflowCount =
+                    0;
+
+                let fixedOverlapCount =
+                    0;
+
+                for (
+                    const ad
+                    of ads
+                ) {
+                    const adRect =
+                        ad.getBoundingClientRect();
+
+                    if (
+                        adRect.left < -2
+                        || adRect.right > width + 2
+                    ) {
+                        overflowCount++;
+                    }
+
+                    const adStyle =
+                        win.getComputedStyle(
+                            ad
+                        );
+
+                    for (
+                        const interactive
+                        of interactives
+                    ) {
+                        if (
+                            ad.contains(
+                                interactive
+                            )
+                            || interactive.contains(
+                                ad
+                            )
+                        ) {
+                            continue;
+                        }
+
+                        const interactiveRect =
+                            interactive
+                                .getBoundingClientRect();
+
+                        if (
+                            overlaps(
+                                adRect,
+                                interactiveRect
+                            )
+                        ) {
+                            overlapCount++;
+
+                            if (
+                                ['fixed', 'sticky', 'absolute']
+                                    .includes(
+                                        adStyle.position
+                                    )
+                            ) {
+                                fixedOverlapCount++;
+                            }
+
+                            minGap = 0;
+
+                            nearestLabel =
+                                labelInteractive(
+                                    interactive
+                                );
+
+                            continue;
+                        }
+
+                        const gap =
+                            rectGap(
+                                adRect,
+                                interactiveRect
+                            );
+
+                        if (
+                            gap < minGap
+                        ) {
+                            minGap =
+                                gap;
+
+                            nearestLabel =
+                                labelInteractive(
+                                    interactive
+                                );
+                        }
+                    }
+                }
+
+                if (
+                    overlapCount > 0
+                    || fixedOverlapCount > 0
+                ) {
+                    return {
+                        level: 'block',
+                        title:
+                            'Pixel Audit — '
+                            + name,
+                        detail:
+                            ads.length
+                            + ' ad slot; phát hiện '
+                            + overlapCount
+                            + ' trường hợp chồng lấn với vùng tương tác'
+                            + (
+                                nearestLabel
+                                    ? ' (gần nhất: '
+                                        + nearestLabel
+                                        + ')'
+                                    : ''
+                            )
+                            + '. Cần sửa bố cục trước khi xuất bản.',
+                        blocks: 1,
+                        warnings: 0
+                    };
+                }
+
+                if (
+                    overflowCount > 0
+                ) {
+                    return {
+                        level: 'warn',
+                        title:
+                            'Pixel Audit — '
+                            + name,
+                        detail:
+                            overflowCount
+                            + ' ad slot có dấu hiệu tràn ngang viewport '
+                            + width
+                            + 'px. Cần xem lại responsive layout.',
+                        blocks: 0,
+                        warnings: 1
+                    };
+                }
+
+                if (
+                    Number.isFinite(
+                        minGap
+                    )
+                    && minGap < warnDistance
+                ) {
+                    return {
+                        level: 'warn',
+                        title:
+                            'Pixel Audit — '
+                            + name,
+                        detail:
+                            'Khoảng cách gần nhất giữa quảng cáo và vùng tương tác khoảng '
+                            + Math.round(
+                                minGap
+                            )
+                            + 'px'
+                            + (
+                                nearestLabel
+                                    ? ' (' + nearestLabel + ')'
+                                    : ''
+                            )
+                            + '. Google không công bố ngưỡng pixel cố định; '
+                            + warnDistance
+                            + 'px ở đây chỉ là ngưỡng cảnh báo nội bộ để giảm nguy cơ bấm nhầm.',
+                        blocks: 0,
+                        warnings: 1
+                    };
+                }
+
+                return {
+                    level: 'pass',
+                    title:
+                        'Pixel Audit — '
+                        + name,
+                    detail:
+                        ads.length
+                        + ' ad slot; không thấy chồng lấn hoặc vị trí quá sát vùng tương tác'
+                        + (
+                            Number.isFinite(
+                                minGap
+                            )
+                                ? '. Khoảng cách gần nhất khoảng '
+                                    + Math.round(
+                                        minGap
+                                    )
+                                    + 'px.'
+                                : '.'
+                        ),
+                    blocks: 0,
+                    warnings: 0
+                };
+
+            } finally {
+                iframe.remove();
+            }
+        }
+
+        const viewports = [
+            {
+                width: 1366,
+                height: 900,
+                name: 'Desktop 1366px',
+                /*
+                 * INTERNAL heuristic only; Google does not publish a universal
+                 * 36px rule.
+                 */
+                warnDistance: 36
+            },
+            {
+                width: 390,
+                height: 844,
+                name: 'Mobile 390px',
+                /*
+                 * Touch interfaces are more prone to accidental taps, so the
+                 * internal warning distance is intentionally more conservative.
+                 */
+                warnDistance: 48
+            }
+        ];
+
+        const rows = [];
+        let blocks = 0;
+        let warnings = 0;
+
+        for (
+            const viewport
+            of viewports
+        ) {
+            try {
+                const result =
+                    await auditViewport(
+                        viewport
+                    );
+
+                rows.push(
+                    step(
+                        result.level,
+                        result.title,
+                        result.detail
+                    )
+                );
+
+                blocks +=
+                    result.blocks;
+
+                warnings +=
+                    result.warnings;
+
+            } catch (error) {
+                rows.push(
+                    step(
+                        'warn',
+                        'Pixel Audit — '
+                            + viewport.name,
+                        'Không thể hoàn tất phép đo pixel cho viewport này.'
+                    )
+                );
+
+                warnings++;
+            }
+        }
+
+        return {
+            rows,
+            blocks,
+            warnings
+        };
+    }
+
+
     function renderLive(audit) {
         liveSection.style.display = '';
         liveResult.innerHTML = audit.rows.join('');
@@ -1244,6 +1973,26 @@
             );
 
             const live = await runLiveAudit();
+
+            addProgress(
+                'info',
+                'Pixel Ad Placement Audit',
+                'Đang đo vị trí quảng cáo thực tế trên Desktop và Mobile…'
+            );
+
+            const pixelAudit =
+                await runPixelAdAudit();
+
+            live.rows.push(
+                ...pixelAudit.rows
+            );
+
+            live.blocks +=
+                pixelAudit.blocks;
+
+            live.warnings +=
+                pixelAudit.warnings;
+
             renderLive(live);
 
             if (live.blocks > 0) {
