@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\{
     AdSlotController as AdminAds,
     MediaController as AdminMedia,
     GeminiArticleController as AdminGeminiArticle,
+    AdSenseReviewController as AdminAdSenseReview,
     ArticleImportController as AdminArticleImport,
     SystemHealthController as AdminSystemHealth
 };
@@ -154,6 +155,16 @@ Route::prefix('admin')
                     ]
                 )->name(
                     'articles.ai-generate'
+                );
+
+                Route::post(
+                    'articles/adsense-review',
+                    [
+                        AdminAdSenseReview::class,
+                        'review',
+                    ]
+                )->name(
+                    'articles.adsense-review'
                 );
 
                 Route::post(
