@@ -71,6 +71,11 @@ PASS = no major issue is apparent.
 NEED_REVIEW = material human review is needed.
 HIGH_RISK = strong signs of low-value/replicated/light-rewrite content or another serious unresolved risk.
 
+LANGUAGE:
+- Write ALL human-readable review text in natural Vietnamese.
+- Keep the machine status field `overall` exactly as PASS, NEED_REVIEW, or HIGH_RISK.
+- Do not translate the `overall` enum values.
+
 Keep every text field brief: 1-2 sentences.
 Arrays: maximum 5 short items.
 If no source/transcript is supplied, say direct source comparison is unavailable.
@@ -316,7 +321,7 @@ PROMPT;
 
                     return response()->json([
                         'message' =>
-                            'Gemini review failed: '
+                            'Đánh giá Gemini thất bại: '
                             . Str::limit(
                                 (string) $message,
                                 260,
@@ -356,7 +361,7 @@ PROMPT;
 
                 if ($outputText === '') {
                     $lastMessage =
-                        'Gemini returned no usable policy-review text.';
+                        'Gemini không trả về nội dung đánh giá chính sách có thể sử dụng.';
 
                     logger()->warning(
                         'Gemini AdSense V3.3 returned no text',
@@ -386,7 +391,7 @@ PROMPT;
 
                 if (!is_array($result)) {
                     $lastMessage =
-                        'Gemini returned an invalid policy-review response.';
+                        'Gemini trả về phản hồi đánh giá không hợp lệ.';
 
                     logger()->warning(
                         'Gemini AdSense V3.3 JSON parse failed',
@@ -427,7 +432,7 @@ PROMPT;
                     )
                 ) {
                     $lastMessage =
-                        'Gemini returned an invalid review status.';
+                        'Gemini trả về trạng thái đánh giá không hợp lệ.';
 
                     continue;
                 }
@@ -489,7 +494,7 @@ PROMPT;
 
             return response()->json([
                 'message' =>
-                    'All Gemini review models are temporarily busy or unavailable. Please run the check again in a moment. Last response: '
+                    'Tất cả model Gemini dùng để kiểm tra hiện đang bận hoặc tạm thời không khả dụng. Hãy chạy lại sau ít phút. Phản hồi cuối: '
                     . Str::limit(
                         $lastMessage,
                         220,
@@ -512,7 +517,7 @@ PROMPT;
 
             return response()->json([
                 'message' =>
-                    'AI AdSense review failed. Please try again.',
+                    'Đánh giá AI AdSense thất bại. Hãy thử lại.',
             ], 500);
         }
     }
