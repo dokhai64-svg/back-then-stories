@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -154,13 +155,15 @@ PROMPT;
             ],
         ];
 
-        $models = array_values(array_unique(array_filter([
-            config('gemini.model'),
-            'gemini-3.8-flash',
-            'gemini-3.6-flash',
-            'gemini-3.5-flash',
-            'gemini-3.5-flash-lite',
-        ])));
+        /*
+         * Railway/FrankenPHP currently enforces a 30-second PHP execution
+         * limit for this request. Keep this endpoint to one configured
+         * Gemini model and a sub-30-second HTTP timeout so a slow AI call
+         * returns a controlled error instead of killing PHP.
+         */
+        $models = [
+            config('gemini.model', 'gemini-3.8-flash'),
+        ];
 
         $lastMessage = 'Gemini is temporarily unavailable. Please try again.';
 
@@ -171,7 +174,8 @@ PROMPT;
                     ])
                     ->acceptJson()
                     ->asJson()
-                    ->timeout(90)
+                    ->connectTimeout(5)
+                    ->timeout(24)
                     ->post(
                         'https://generativelanguage.googleapis.com/v1beta/interactions',
                         [
@@ -255,6 +259,19 @@ PROMPT;
             return response()->json([
                 'message' => $lastMessage,
             ], 503);
+
+        } catch (ConnectionException $e) {
+            logger()->warning(
+                'Gemini AdSense review timed out',
+                [
+                    'message' => $e->getMessage(),
+                ]
+            );
+
+            return response()->json([
+                'message' =>
+                    'Gemini review timed out after 24 seconds. Please run the check again.',
+            ], 504);
 
         } catch (Throwable $e) {
             report($e);
