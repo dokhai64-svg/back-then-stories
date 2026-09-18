@@ -835,35 +835,293 @@
             if (broken.length) {
                 add(
                     'block',
-                    'Rendered images',
-                    broken.length + ' image(s) failed to load.'
+                    'Ảnh đã render',
+                    broken.length + ' ảnh tải thất bại.'
                 );
             } else {
                 add(
                     'pass',
-                    'Rendered images',
-                    imageUrls.length + ' image(s) loaded successfully.'
+                    'Ảnh đã render',
+                    imageUrls.length + ' ảnh đã tải thành công.'
                 );
             }
         } else {
             add(
                 'pass',
-                'Rendered images',
-                'No images detected. Images are not required.'
+                'Ảnh đã render',
+                'Không phát hiện ảnh. Bài viết không bắt buộc phải có ảnh.'
             );
         }
 
-        const ads = doc.querySelectorAll(
-            '[data-gam-slot], ins.adsbygoogle, .ad'
-        ).length;
+        /*
+         * GOOGLE ADS / PUBLISHER-CONTENT POLICY CHECK
+         *
+         * Google does NOT publish a rule such as "3 ads = violation".
+         * Therefore the scanner must not warn merely because it finds 3 slots.
+         *
+         * What we can check structurally:
+         * 1) whether ad/promo elements appear to overwhelm publisher-content,
+         * 2) whether ads are placed inside / next to interactive controls in a
+         *    way that may encourage accidental clicks,
+         * 3) whether nearby labels/headings are misleading,
+         * 4) whether the page still has meaningful publisher-content.
+         *
+         * The final served-ad layout can still change after Google fills ads,
+         * so this remains an advisory structural audit, not a Google verdict.
+         */
+        const adSelector =
+            '[data-gam-slot], ins.adsbygoogle, .ad, [data-ad-slot], [data-ad-unit]';
 
-        add(
-            'warn',
-            'Final ad density',
-            ads +
-                ' ad/ad-placeholder element(s) detected. ' +
-                'Human review is still required because actual served-ad density can change.'
-        );
+        const adElements =
+            [...doc.querySelectorAll(adSelector)];
+
+        const ads =
+            adElements.length;
+
+        const publisherRoot =
+            articleBody
+            || doc.querySelector('article')
+            || doc.querySelector('main')
+            || doc.body;
+
+        const publisherText =
+            (publisherRoot?.textContent || '')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+        const publisherWords =
+            publisherText
+                ? publisherText
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .length
+                : 0;
+
+        /*
+         * This block count is only an internal warning heuristic.
+         * It is NOT a Google threshold.
+         */
+        const publisherBlocks =
+            publisherRoot
+                ? publisherRoot.querySelectorAll(
+                    'p, h1, h2, h3, h4, blockquote, img, video, iframe, figure, table, ul, ol'
+                ).length
+                : 0;
+
+        function elementLooksInteractive(el) {
+            if (!el) {
+                return false;
+            }
+
+            if (
+                el.matches?.(
+                    'a, button, nav, select, input, summary, [role="button"], [role="navigation"]'
+                )
+            ) {
+                return true;
+            }
+
+            if (
+                el.querySelector?.(
+                    'a, button, select, input, [role="button"], iframe[src*="youtube"], video'
+                )
+            ) {
+                return true;
+            }
+
+            const text =
+                (el.textContent || '')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .toLowerCase();
+
+            return /(^|\b)(next|previous|prev|download|play|watch|continue|read more|menu|tiếp|trước|tải xuống|phát|xem|đọc tiếp)(\b|$)/i
+                .test(text);
+        }
+
+        function nearbyInteractiveRisk(ad) {
+            if (!ad) {
+                return false;
+            }
+
+            /*
+             * Ads nested inside interactive UI are a strong structural risk.
+             */
+            if (
+                ad.closest(
+                    'a, button, nav, [role="button"], [role="navigation"]'
+                )
+            ) {
+                return true;
+            }
+
+            const parent =
+                ad.parentElement;
+
+            if (!parent) {
+                return false;
+            }
+
+            const siblings =
+                [...parent.children];
+
+            const index =
+                siblings.indexOf(ad);
+
+            if (index < 0) {
+                return false;
+            }
+
+            /*
+             * Look only at immediate neighboring blocks.
+             * This is intentionally conservative and avoids pretending we can
+             * measure rendered pixel distance from fetched HTML.
+             */
+            const nearby =
+                siblings.slice(
+                    Math.max(0, index - 1),
+                    Math.min(
+                        siblings.length,
+                        index + 2
+                    )
+                );
+
+            return nearby.some(
+                el =>
+                    el !== ad
+                    && elementLooksInteractive(el)
+            );
+        }
+
+        function misleadingLabelRisk(ad) {
+            if (!ad) {
+                return false;
+            }
+
+            let previous =
+                ad.previousElementSibling;
+
+            /*
+             * Sometimes the ad is wrapped in a generic container.
+             */
+            if (
+                !previous
+                && ad.parentElement
+            ) {
+                previous =
+                    ad.parentElement
+                        .previousElementSibling;
+            }
+
+            if (!previous) {
+                return false;
+            }
+
+            const label =
+                (previous.textContent || '')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .toLowerCase();
+
+            if (!label) {
+                return false;
+            }
+
+            /*
+             * Allowed/neutral labels are not warnings.
+             */
+            if (
+                /^(advertisement|advertisements|sponsored links|quảng cáo)$/i
+                    .test(label)
+            ) {
+                return false;
+            }
+
+            /*
+             * Google specifically warns against headings that can make ads look
+             * like navigation/resources/helpful links or encourage clicking.
+             */
+            return /(resources?|helpful links?|downloads?|click|support us|next|previous|menu|tài nguyên|liên kết hữu ích|tải xuống|bấm|nhấp|ủng hộ)/i
+                .test(label);
+        }
+
+        const accidentalClickRisks =
+            adElements.filter(
+                nearbyInteractiveRisk
+            ).length;
+
+        const misleadingLabelRisks =
+            adElements.filter(
+                misleadingLabelRisk
+            ).length;
+
+        /*
+         * Google policy is about ads/promotional material exceeding
+         * publisher-content. There is no official word-count/ad-count formula.
+         * The following is an internal REVIEW heuristic only.
+         */
+        const possibleContentBalanceRisk =
+            ads > 0
+            && (
+                publisherWords < 180
+                || (
+                    publisherBlocks > 0
+                    && ads > publisherBlocks
+                )
+            );
+
+        if (ads === 0) {
+            add(
+                'pass',
+                'Bố trí quảng cáo',
+                'Không phát hiện ad slot trên Preview. Không có vấn đề về mật độ quảng cáo ở trạng thái hiện tại.'
+            );
+
+        } else if (
+            accidentalClickRisks > 0
+            || misleadingLabelRisks > 0
+        ) {
+            add(
+                'warn',
+                'Bố trí quảng cáo cần xem lại',
+                ads
+                    + ' ad slot được phát hiện. '
+                    + (
+                        accidentalClickRisks > 0
+                            ? accidentalClickRisks
+                                + ' vị trí nằm trong/gần vùng tương tác; '
+                            : ''
+                    )
+                    + (
+                        misleadingLabelRisks > 0
+                            ? misleadingLabelRisks
+                                + ' vị trí có nhãn/tiêu đề dễ gây hiểu nhầm. '
+                            : ''
+                    )
+                    + 'Hãy tách quảng cáo khỏi nút điều hướng, video/play, download, menu và các vùng dễ bấm nhầm.'
+            );
+
+        } else if (
+            possibleContentBalanceRisk
+        ) {
+            add(
+                'warn',
+                'Cân bằng quảng cáo và nội dung cần xem lại',
+                ads
+                    + ' ad slot được phát hiện trong khi phần publisher-content có vẻ tương đối ít. '
+                    + 'Google không cho phép quảng cáo hoặc nội dung quảng bá trả phí nhiều hơn publisher-content. '
+                    + 'Đây là cảnh báo nội bộ, không phải ngưỡng số lượng chính thức của Google.'
+            );
+
+        } else {
+            add(
+                'pass',
+                'Bố trí quảng cáo',
+                ads
+                    + ' ad slot được phát hiện. Không thấy dấu hiệu cấu trúc rõ ràng cho thấy quảng cáo lấn át publisher-content hoặc nằm sát vùng tương tác. '
+                    + 'Số lượng ad slot tự nó không phải là vi phạm; vẫn nên kiểm tra trang thật sau khi Google phân phối quảng cáo.'
+            );
+        }
 
         return {
             rows,
