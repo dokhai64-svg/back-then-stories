@@ -116,8 +116,7 @@ class GeminiArticleController extends Controller
             'gemini-3.6-flash',
             'gemini-3.5-flash',
             'gemini-3.5-flash-lite',
-            'gemini-2.5-flash',
-            'gemini-2.5-flash-lite',
+            'gemini-3.1-flash-lite',
         ];
 
         $startedAt = microtime(true);
@@ -255,6 +254,25 @@ class GeminiArticleController extends Controller
                 }
 
                 if (
+                    $this->isUnavailableModelFailure(
+                        $response->status(),
+                        $message
+                    )
+                ) {
+                    logger()->info(
+                        'Gemini model unavailable; skipping to next fallback',
+                        [
+                            'request_id' => $requestId,
+                            'model' => $model,
+                            'status' => $response->status(),
+                            'message' => $message,
+                        ]
+                    );
+
+                    continue;
+                }
+
+                if (
                     $this->isTransientGeminiFailure(
                         $response->status(),
                         $message
@@ -364,7 +382,7 @@ class GeminiArticleController extends Controller
 
         return response()->json([
             'message' =>
-                'AI fallback could not complete the request after trying Gemini 3.x and 2.5 Flash pools. '
+                'AI fallback could not complete the request after trying the supported Gemini 3.x Flash pool. '
                 . Str::limit($lastMessage, 240, ''),
             'request_id' => $requestId,
         ], 503);
@@ -446,8 +464,7 @@ class GeminiArticleController extends Controller
             'gemini-3.6-flash',
             'gemini-3.5-flash',
             'gemini-3.5-flash-lite',
-            'gemini-2.5-flash',
-            'gemini-2.5-flash-lite',
+            'gemini-3.1-flash-lite',
         ];
 
         $startedAt =
@@ -587,6 +604,25 @@ class GeminiArticleController extends Controller
                     );
 
                 if (
+                    $this->isUnavailableModelFailure(
+                        $response->status(),
+                        $lastMessage
+                    )
+                ) {
+                    logger()->info(
+                        'Gemini chapter model unavailable; skipping fallback',
+                        [
+                            'request_id' => $requestId,
+                            'model' => $model,
+                            'status' => $response->status(),
+                            'message' => $lastMessage,
+                        ]
+                    );
+
+                    continue;
+                }
+
+                if (
                     $this->isTransientGeminiFailure(
                         $response->status(),
                         $lastMessage
@@ -714,7 +750,7 @@ class GeminiArticleController extends Controller
 
         return response()->json([
             'message' =>
-                'AI could not finish chapter analysis after trying Gemini 3.x and 2.5 Flash pools. '
+                'AI could not finish chapter analysis after trying the supported Gemini 3.x Flash pool. '
                 . Str::limit(
                     $lastMessage,
                     220,
@@ -839,8 +875,7 @@ PROMPT;
             'gemini-3.6-flash',
             'gemini-3.5-flash',
             'gemini-3.5-flash-lite',
-            'gemini-2.5-flash',
-            'gemini-2.5-flash-lite',
+            'gemini-3.1-flash-lite',
         ];
 
         $startedAt = microtime(true);
@@ -986,6 +1021,25 @@ PROMPT;
                 }
 
                 if (
+                    $this->isUnavailableModelFailure(
+                        $response->status(),
+                        $message
+                    )
+                ) {
+                    logger()->info(
+                        'Gemini model unavailable; skipping to next fallback',
+                        [
+                            'request_id' => $requestId,
+                            'model' => $model,
+                            'status' => $response->status(),
+                            'message' => $message,
+                        ]
+                    );
+
+                    continue;
+                }
+
+                if (
                     $this->isTransientGeminiFailure(
                         $response->status(),
                         $message
@@ -1085,7 +1139,7 @@ PROMPT;
 
         return response()->json([
             'message' =>
-                'AI could not finish the rewrite after trying Gemini 3.x and 2.5 Flash pools. '
+                'AI could not finish the rewrite after trying the supported Gemini 3.x Flash pool. '
                 . Str::limit(
                     $lastMessage,
                     220,
@@ -1327,6 +1381,19 @@ Before returning:
 4. Every MEDIA token must remain unchanged.
 5. Return exactly one JSON field: rewritten_body.
 PROMPT;
+    }
+
+    private function isUnavailableModelFailure(
+        int $status,
+        string $message
+    ): bool {
+        $lower = mb_strtolower($message);
+
+        return $status === 404
+            || str_contains($lower, 'no longer available')
+            || str_contains($lower, 'not found')
+            || str_contains($lower, 'not supported for this user')
+            || str_contains($lower, 'not available to new users');
     }
 
     private function isTransientGeminiFailure(
