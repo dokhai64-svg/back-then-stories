@@ -13,6 +13,14 @@ class GeminiArticleController extends Controller
 {
     public function generate(Request $request)
     {
+        /*
+         * V5 OPTIMIZED AI CONTROLLER
+         * Keep normal CMS requests unchanged, but allow enough execution time
+         * for SEO / rewrite / chapter generation.
+         */
+        @ini_set('max_execution_time', '95');
+        @set_time_limit(95);
+
         $requestId = 'ai_' . Str::lower(Str::random(8));
 
         $data = $request->validate([
@@ -105,16 +113,27 @@ class GeminiArticleController extends Controller
             . $articleBodyForPrompt;
 
         /*
-         * Fast fallback chain.
+         * V5 stable model pool.
+         * Use Railway GEMINI_MODEL first, then the proven Flash fallbacks.
+         * Do not add speculative/deprecated model IDs here.
          */
-        $models = [
-            'gemini-flash-lite-latest',
-            'gemini-3.5-flash-lite',
-            'gemini-3.6-flash',
-        ];
+        $models = array_values(
+            array_unique(
+                array_filter([
+                    config(
+                        'gemini.model',
+                        'gemini-3.8-flash'
+                    ),
+                    'gemini-3.8-flash',
+                    'gemini-3.6-flash',
+                    'gemini-3.5-flash',
+                    'gemini-3.5-flash-lite',
+                ])
+            )
+        );
 
         $startedAt = microtime(true);
-        $hardBudgetSeconds = 25.0;
+        $hardBudgetSeconds = 88.0;
 
         $lastMessage =
             'Gemini is temporarily unavailable. Please try again.';
@@ -135,8 +154,8 @@ class GeminiArticleController extends Controller
                     ])
                     ->acceptJson()
                     ->asJson()
-                    ->connectTimeout(2)
-                    ->timeout(7)
+                    ->connectTimeout(5)
+                    ->timeout(60)
                     ->post(
                         'https://generativelanguage.googleapis.com/v1beta/interactions',
                         [
@@ -344,7 +363,7 @@ class GeminiArticleController extends Controller
 
         return response()->json([
             'message' =>
-                'AI fallback could not complete the request. '
+                'AI could not complete SEO generation with the configured stable Gemini pool. '
                 . Str::limit($lastMessage, 240, ''),
             'request_id' => $requestId,
         ], 503);
@@ -420,16 +439,26 @@ class GeminiArticleController extends Controller
             . "\n\nSOURCE ARTICLE HTML:\n"
             . $sourceForPrompt;
 
-        $models = [
-            'gemini-flash-lite-latest',
-            'gemini-3.5-flash-lite',
-        ];
+        $models = array_values(
+            array_unique(
+                array_filter([
+                    config(
+                        'gemini.model',
+                        'gemini-3.8-flash'
+                    ),
+                    'gemini-3.8-flash',
+                    'gemini-3.6-flash',
+                    'gemini-3.5-flash',
+                    'gemini-3.5-flash-lite',
+                ])
+            )
+        );
 
         $startedAt =
             microtime(true);
 
         $hardBudgetSeconds =
-            25.0;
+            88.0;
 
         $lastMessage =
             'Gemini is temporarily unavailable. Please try again.';
@@ -442,17 +471,17 @@ class GeminiArticleController extends Controller
                     - $startedAt
                 );
 
-            if ($remaining < 5) {
+            if ($remaining < 10) {
                 break;
             }
 
             $timeout =
                 (int) max(
-                    5,
+                    15,
                     min(
-                        14,
+                        60,
                         floor(
-                            $remaining - 2
+                            $remaining - 3
                         )
                     )
                 );
@@ -465,7 +494,7 @@ class GeminiArticleController extends Controller
                     ])
                         ->acceptJson()
                         ->asJson()
-                        ->connectTimeout(2)
+                        ->connectTimeout(5)
                         ->timeout($timeout)
                         ->post(
                             'https://generativelanguage.googleapis.com/v1beta/interactions',
@@ -676,7 +705,7 @@ class GeminiArticleController extends Controller
 
         return response()->json([
             'message' =>
-                'AI could not finish chapter analysis within the server time limit. '
+                'AI could not finish chapter analysis with the configured stable Gemini pool. '
                 . Str::limit(
                     $lastMessage,
                     220,
@@ -783,28 +812,84 @@ PROMPT;
             ''
         );
 
+        $sourceWordCount =
+            count(
+                $this->words(
+                    $sourceHtml
+                )
+            );
+
+        $minimumTargetWords =
+            max(
+                180,
+                (int) floor(
+                    $sourceWordCount * 0.62
+                )
+            );
+
+        $idealLowWords =
+            max(
+                $minimumTargetWords,
+                (int) floor(
+                    $sourceWordCount * 0.80
+                )
+            );
+
+        $idealHighWords =
+            max(
+                $idealLowWords,
+                (int) ceil(
+                    $sourceWordCount * 1.15
+                )
+            );
+
         $prompt =
             $this->rewritePrompt()
+            . "\n\nLENGTH REQUIREMENT:\n"
+            . "Source article word count: "
+            . $sourceWordCount
+            . " words.\n"
+            . "Do not summarize or compress the article. "
+            . "The rewrite must contain at least "
+            . $minimumTargetWords
+            . " words and should ideally be between "
+            . $idealLowWords
+            . " and "
+            . $idealHighWords
+            . " words. Preserve supported factual detail without inventing facts."
             . "\n\nARTICLE TITLE:\n"
             . trim($title)
             . "\n\nSOURCE BODY HTML:\n"
             . $protectedHtml;
 
         /*
-         * Keep this inside Railway/PHP's 30-second request limit.
-         * Whole-article rewriting needs more output time than SEO,
-         * so use only fast models and a strict total budget.
+         * V5 rewrite path.
+         * Whole-article rewriting is the heaviest task, so use the same
+         * proven stable Flash pool with a bounded but realistic time budget.
          */
-        $models = [
-            'gemini-flash-lite-latest',
-            'gemini-3.5-flash-lite',
-        ];
+        $models = array_values(
+            array_unique(
+                array_filter([
+                    config(
+                        'gemini.model',
+                        'gemini-3.8-flash'
+                    ),
+                    'gemini-3.8-flash',
+                    'gemini-3.6-flash',
+                    'gemini-3.5-flash',
+                    'gemini-3.5-flash-lite',
+                ])
+            )
+        );
 
         $startedAt = microtime(true);
-        $hardBudgetSeconds = 25.0;
+        $hardBudgetSeconds = 88.0;
 
         $lastMessage =
             'Gemini is temporarily unavailable. Please try again.';
+
+        $lastQualityMessage = '';
+        $lastQualityModel = '';
 
         foreach ($models as $model) {
             $elapsed =
@@ -813,14 +898,19 @@ PROMPT;
             $remaining =
                 $hardBudgetSeconds - $elapsed;
 
-            if ($remaining < 5) {
+            if ($remaining < 10) {
                 break;
             }
 
             $timeout =
                 (int) max(
-                    5,
-                    min(14, floor($remaining - 2))
+                    15,
+                    min(
+                        60,
+                        floor(
+                            $remaining - 3
+                        )
+                    )
                 );
 
             try {
@@ -829,7 +919,7 @@ PROMPT;
                     ])
                     ->acceptJson()
                     ->asJson()
-                    ->connectTimeout(2)
+                    ->connectTimeout(5)
                     ->timeout($timeout)
                     ->post(
                         'https://generativelanguage.googleapis.com/v1beta/interactions',
@@ -838,7 +928,7 @@ PROMPT;
                             'input' => $prompt,
                             'generation_config' => [
                                 'thinking_level' => 'low',
-                                'max_output_tokens' => 5000,
+                                'max_output_tokens' => 7000,
                             ],
                             'response_format' => [
                                 'type' => 'text',
@@ -1003,9 +1093,12 @@ PROMPT;
                 );
 
             if (!$quality['ok']) {
-                $lastMessage =
+                $lastQualityMessage =
                     'Rewrite originality/quality check failed: '
                     . $quality['reason'];
+
+                $lastQualityModel =
+                    $model;
 
                 logger()->warning(
                     'Gemini rewrite guard rejected output',
@@ -1019,20 +1112,55 @@ PROMPT;
                 continue;
             }
 
+            $qualityReason =
+                (string) (
+                    $quality['reason']
+                    ?? 'passed'
+                );
+
             return response()->json([
                 'rewritten_body' => $rewritten,
                 'ai_model' => $model,
                 'request_id' => $requestId,
-                'originality_check' => 'passed',
+                'originality_check' =>
+                    str_starts_with(
+                        $qualityReason,
+                        'passed with length warning'
+                    )
+                        ? 'passed_with_length_warning'
+                        : 'passed',
+                'quality_note' => $qualityReason,
+                'source_words' =>
+                    $quality['source_words']
+                    ?? null,
+                'rewritten_words' =>
+                    $quality['rewritten_words']
+                    ?? null,
             ]);
         }
 
+        $finalMessage =
+            $lastQualityMessage !== ''
+                ? (
+                    'Gemini đã trả nội dung nhưng rewrite chưa đạt kiểm tra chất lượng'
+                    . (
+                        $lastQualityModel !== ''
+                            ? ' (' . $lastQualityModel . ')'
+                            : ''
+                    )
+                    . ': '
+                    . $lastQualityMessage
+                )
+                : (
+                    'Không model Gemini nào hoàn tất được rewrite. Phản hồi cuối: '
+                    . $lastMessage
+                );
+
         return response()->json([
             'message' =>
-                'AI could not finish the rewrite within the server time limit. '
-                . Str::limit(
-                    $lastMessage,
-                    220,
+                Str::limit(
+                    $finalMessage,
+                    420,
                     ''
                 ),
             'request_id' => $requestId,
@@ -1135,11 +1263,20 @@ PROMPT;
         $ratio =
             $rewrittenCount / max(1, $sourceCount);
 
-        if ($ratio < 0.60) {
+        if ($ratio < 0.50) {
             return [
                 'ok' => false,
                 'reason' =>
-                    'rewritten article became too short',
+                    'rewritten article became too short ('
+                    . $rewrittenCount
+                    . ' vs '
+                    . $sourceCount
+                    . ' words; '
+                    . round(
+                        $ratio * 100,
+                        1
+                    )
+                    . '% of source)',
             ];
         }
 
@@ -1214,7 +1351,23 @@ PROMPT;
 
         return [
             'ok' => true,
-            'reason' => 'passed',
+            'reason' =>
+                $ratio < 0.65
+                    ? (
+                        'passed with length warning: '
+                        . $rewrittenCount
+                        . ' vs '
+                        . $sourceCount
+                        . ' words ('
+                        . round(
+                            $ratio * 100,
+                            1
+                        )
+                        . '% of source)'
+                    )
+                    : 'passed',
+            'source_words' => $sourceCount,
+            'rewritten_words' => $rewrittenCount,
         ];
     }
 
@@ -1251,7 +1404,9 @@ EDITORIAL STYLE
 - No hashtags.
 - Do not add a call to action.
 - Keep approximately the same amount of factual substance as the source.
-- Aim for roughly 80% to 120% of the source length when possible.
+- Do NOT summarize, condense, or turn the article into a short recap.
+- Preserve the important chronology, context, contrasts, turning points, and supported factual detail.
+- Follow the explicit LENGTH REQUIREMENT supplied after this prompt.
 
 HTML OUTPUT
 - Return clean article-body HTML only inside the required JSON field.
