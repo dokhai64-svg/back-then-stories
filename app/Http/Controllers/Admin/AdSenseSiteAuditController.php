@@ -7,7 +7,6 @@ use App\Models\Article;
 use App\Models\Site;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Str;
 
 class AdSenseSiteAuditController extends Controller
 {
@@ -56,10 +55,7 @@ class AdSenseSiteAuditController extends Controller
                     (string) $article->body
                 );
 
-            if (
-                $this->wordCount($plain)
-                >= 80
-            ) {
+            if ($this->wordCount($plain) >= 80) {
                 $hash =
                     md5(
                         $this->normalizeText(
@@ -110,109 +106,53 @@ class AdSenseSiteAuditController extends Controller
 
         $siteBlocks =
             collect($siteChecks)
-                ->where(
-                    'level',
-                    'block'
-                )
+                ->where('level', 'block')
                 ->count();
 
         $siteWarnings =
             collect($siteChecks)
-                ->where(
-                    'level',
-                    'warn'
-                )
+                ->where('level', 'warn')
                 ->count();
 
         $status =
-            (
-                $siteBlocks
-                + $articleBlocks
-            ) > 0
+            ($siteBlocks + $articleBlocks) > 0
                 ? 'BLOCK'
                 : (
-                    (
-                        $siteWarnings
-                        + $articleWarnings
-                    ) > 0
+                    ($siteWarnings + $articleWarnings) > 0
                         ? 'NEED_REVIEW'
                         : 'READY'
                 );
 
         $report = [
-            'generated_at' =>
-                now(),
-            'status' =>
-                $status,
-            'published_count' =>
-                $articles->count(),
-            'site_checks' =>
-                $siteChecks,
-            'articles' =>
-                $articleReports,
+            'generated_at' => now(),
+            'status' => $status,
+            'published_count' => $articles->count(),
+            'site_checks' => $siteChecks,
+            'articles' => $articleReports,
             'summary' => [
-                'site_blocks' =>
-                    $siteBlocks,
-                'site_warnings' =>
-                    $siteWarnings,
-                'article_blocks' =>
-                    $articleBlocks,
-                'article_warnings' =>
-                    $articleWarnings,
+                'site_blocks' => $siteBlocks,
+                'site_warnings' => $siteWarnings,
+                'article_blocks' => $articleBlocks,
+                'article_warnings' => $articleWarnings,
                 'ready_articles' =>
                     $articleReports
-                        ->where(
-                            'status',
-                            'READY'
-                        )
+                        ->where('status', 'READY')
                         ->count(),
                 'review_articles' =>
                     $articleReports
-                        ->where(
-                            'status',
-                            'NEED_REVIEW'
-                        )
+                        ->where('status', 'NEED_REVIEW')
                         ->count(),
                 'blocked_articles' =>
                     $articleReports
-                        ->where(
-                            'status',
-                            'BLOCK'
-                        )
+                        ->where('status', 'BLOCK')
                         ->count(),
             ],
             'manual_checks' => [
-                'Quyền sử dụng ảnh/video/media phải được xác minh thủ công; hệ thống không thể chứng minh license.',
-                'Kiểm tra nguồn traffic và tuyệt đối không tự click quảng cáo hoặc khuyến khích người dùng click.',
-                'Sau khi ads thật được Google phân phối, kiểm tra lại mật độ quảng cáo trên Desktop và Mobile.',
-                'Kiểm tra Google AdSense Policy Center sau khi site bắt đầu có ad serving.',
-                'Rà soát Google Publisher Policies/Restrictions mới nhất trước khi gửi Request Review.',
-            ],
-            'policy_links' => [
-                [
-                    'label' =>
-                        'AdSense Program Policies',
-                    'url' =>
-                        'https://support.google.com/adsense/answer/48182',
-                ],
-                [
-                    'label' =>
-                        'Google Publisher Policies',
-                    'url' =>
-                        'https://support.google.com/publisherpolicies/answer/10502938',
-                ],
-                [
-                    'label' =>
-                        'Replicated Content',
-                    'url' =>
-                        'https://support.google.com/publisherpolicies/answer/11190248',
-                ],
-                [
-                    'label' =>
-                        'Ads vs Publisher Content',
-                    'url' =>
-                        'https://support.google.com/publisherpolicies/answer/11169917',
-                ],
+                'Quyền sử dụng ảnh/video/media vẫn phải được xác minh thủ công.',
+                'Không tự click quảng cáo và không khuyến khích người dùng click quảng cáo.',
+                'Sau khi quảng cáo thật được Google phân phối, kiểm tra lại Desktop và Mobile.',
+                'Kiểm tra AdSense Policy Center sau khi site bắt đầu có ad serving.',
+                'Rà soát chính sách Google mới nhất trước khi gửi Request Review.',
             ],
         ];
 
@@ -233,20 +173,15 @@ class AdSenseSiteAuditController extends Controller
                 string $detail
             ) use (&$checks): void {
                 $checks[] = [
-                    'level' =>
-                        $level,
-                    'title' =>
-                        $title,
-                    'detail' =>
-                        $detail,
+                    'level' => $level,
+                    'title' => $title,
+                    'detail' => $detail,
                 ];
             };
 
         $appUrl =
             trim(
-                (string) config(
-                    'app.url'
-                )
+                (string) config('app.url')
             );
 
         $appHost =
@@ -278,25 +213,17 @@ class AdSenseSiteAuditController extends Controller
 
         $activeSites =
             Site::query()
-                ->where(
-                    'active',
-                    true
-                )
+                ->where('active', true)
                 ->get();
 
-        if (
-            $activeSites->isEmpty()
-        ) {
+        if ($activeSites->isEmpty()) {
             $add(
                 'block',
                 'Site identity',
                 'Không có site active trong CMS.'
             );
         } else {
-            foreach (
-                $activeSites
-                as $site
-            ) {
+            foreach ($activeSites as $site) {
                 $domain =
                     mb_strtolower(
                         trim(
@@ -322,39 +249,24 @@ class AdSenseSiteAuditController extends Controller
                     $add(
                         'pass',
                         'Domain',
-                        $domain
-                        ?: $appHost
+                        $domain ?: $appHost
                     );
                 }
             }
         }
 
         $routes = [
-            'home' =>
-                'Homepage',
-            'about' =>
-                'About',
-            'contact' =>
-                'Contact',
-            'privacy' =>
-                'Privacy',
-            'terms' =>
-                'Terms',
-            'editorial' =>
-                'Editorial Policy',
-            'articles.show' =>
-                'Public article route',
+            'home' => 'Homepage',
+            'about' => 'About',
+            'contact' => 'Contact',
+            'privacy' => 'Privacy',
+            'terms' => 'Terms',
+            'editorial' => 'Editorial Policy',
+            'articles.show' => 'Public article route',
         ];
 
-        foreach (
-            $routes
-            as $routeName => $label
-        ) {
-            if (
-                Route::has(
-                    $routeName
-                )
-            ) {
+        foreach ($routes as $routeName => $label) {
+            if (Route::has($routeName)) {
                 $add(
                     'pass',
                     $label,
@@ -372,27 +284,15 @@ class AdSenseSiteAuditController extends Controller
         }
 
         $views = [
-            'pages.about' =>
-                'About page',
-            'pages.contact' =>
-                'Contact page',
-            'pages.privacy' =>
-                'Privacy page',
-            'pages.terms' =>
-                'Terms page',
-            'pages.editorial' =>
-                'Editorial Policy page',
+            'pages.about' => 'About page',
+            'pages.contact' => 'Contact page',
+            'pages.privacy' => 'Privacy page',
+            'pages.terms' => 'Terms page',
+            'pages.editorial' => 'Editorial Policy page',
         ];
 
-        foreach (
-            $views
-            as $viewName => $label
-        ) {
-            if (
-                view()->exists(
-                    $viewName
-                )
-            ) {
+        foreach ($views as $viewName => $label) {
+            if (view()->exists($viewName)) {
                 $add(
                     'pass',
                     $label,
@@ -414,11 +314,7 @@ class AdSenseSiteAuditController extends Controller
                 'views/pages/privacy.blade.php'
             );
 
-        if (
-            is_file(
-                $privacyPath
-            )
-        ) {
+        if (is_file($privacyPath)) {
             $privacy =
                 mb_strtolower(
                     (string) file_get_contents(
@@ -468,15 +364,9 @@ class AdSenseSiteAuditController extends Controller
         }
 
         $adsTxtPath =
-            public_path(
-                'ads.txt'
-            );
+            public_path('ads.txt');
 
-        if (
-            is_file(
-                $adsTxtPath
-            )
-        ) {
+        if (is_file($adsTxtPath)) {
             $adsTxt =
                 trim(
                     (string) file_get_contents(
@@ -515,11 +405,7 @@ class AdSenseSiteAuditController extends Controller
                 'views/layouts/app.blade.php'
             );
 
-        if (
-            is_file(
-                $publicLayout
-            )
-        ) {
+        if (is_file($publicLayout)) {
             $layout =
                 (string) file_get_contents(
                     $publicLayout
@@ -566,12 +452,9 @@ class AdSenseSiteAuditController extends Controller
                 string $detail
             ) use (&$checks): void {
                 $checks[] = [
-                    'level' =>
-                        $level,
-                    'title' =>
-                        $title,
-                    'detail' =>
-                        $detail,
+                    'level' => $level,
+                    'title' => $title,
+                    'detail' => $detail,
                 ];
             };
 
@@ -579,14 +462,10 @@ class AdSenseSiteAuditController extends Controller
             (string) $article->body;
 
         $plain =
-            $this->plainText(
-                $body
-            );
+            $this->plainText($body);
 
         $words =
-            $this->wordCount(
-                $plain
-            );
+            $this->wordCount($plain);
 
         $placeholderTerms = [
             'lorem ipsum',
@@ -635,18 +514,14 @@ class AdSenseSiteAuditController extends Controller
             );
         }
 
-        if (
-            $words < 120
-        ) {
+        if ($words < 120) {
             $add(
                 'block',
                 'Publisher content',
                 $words
                 . ' từ. Nội dung quá ít để coi là bài hoàn chỉnh.'
             );
-        } elseif (
-            $words < 400
-        ) {
+        } elseif ($words < 400) {
             $add(
                 'warn',
                 'Publisher content',
@@ -662,9 +537,7 @@ class AdSenseSiteAuditController extends Controller
             );
         }
 
-        if (
-            $foundPlaceholders
-        ) {
+        if ($foundPlaceholders) {
             $add(
                 'block',
                 'Placeholder',
@@ -692,9 +565,7 @@ class AdSenseSiteAuditController extends Controller
                 $youtubeCount
                 . ' YouTube reference/embed nhưng publisher text tương đối ít.'
             );
-        } elseif (
-            $youtubeCount > 0
-        ) {
+        } elseif ($youtubeCount > 0) {
             $add(
                 'pass',
                 'YouTube / embed',
@@ -732,28 +603,20 @@ class AdSenseSiteAuditController extends Controller
                 )
             );
 
-        if (
-            $externalImages
-        ) {
+        if ($externalImages) {
             $add(
                 'warn',
                 'External images',
-                count(
-                    $externalImages
-                )
+                count($externalImages)
                 . ' ảnh external. Cần kiểm tra quyền sử dụng và hotlink.'
             );
         }
 
-        if (
-            $base64Images
-        ) {
+        if ($base64Images) {
             $add(
                 'warn',
                 'Base64 images',
-                count(
-                    $base64Images
-                )
+                count($base64Images)
                 . ' ảnh base64; nên chuyển vào Media Library/storage.'
             );
         }
@@ -782,9 +645,7 @@ class AdSenseSiteAuditController extends Controller
         ) {
             $ids =
                 $duplicateTitles
-                    ->get(
-                        $normalizedTitle
-                    )
+                    ->get($normalizedTitle)
                     ->pluck('id')
                     ->implode(', ');
 
@@ -797,9 +658,7 @@ class AdSenseSiteAuditController extends Controller
             );
         }
 
-        if (
-            $words >= 80
-        ) {
+        if ($words >= 80) {
             $bodyHash =
                 md5(
                     $this->normalizeText(
@@ -816,9 +675,7 @@ class AdSenseSiteAuditController extends Controller
                     implode(
                         ', ',
                         $duplicateBodies
-                            ->get(
-                                $bodyHash
-                            )
+                            ->get($bodyHash)
                     );
 
                 $add(
@@ -855,9 +712,7 @@ class AdSenseSiteAuditController extends Controller
             );
         }
 
-        if (
-            !$article->category_id
-        ) {
+        if (!$article->category_id) {
             $add(
                 'warn',
                 'Category',
@@ -869,9 +724,7 @@ class AdSenseSiteAuditController extends Controller
             $article->content_mode === 'chapter'
             && $article->chapters->count()
         ) {
-            if (
-                $words < 120
-            ) {
+            if ($words < 120) {
                 $add(
                     'warn',
                     'Chapter landing',
@@ -890,9 +743,7 @@ class AdSenseSiteAuditController extends Controller
                         )
                     );
 
-                if (
-                    $chapterWords < 120
-                ) {
+                if ($chapterWords < 120) {
                     $add(
                         'warn',
                         'Chapter '
@@ -906,18 +757,12 @@ class AdSenseSiteAuditController extends Controller
 
         $blockCount =
             collect($checks)
-                ->where(
-                    'level',
-                    'block'
-                )
+                ->where('level', 'block')
                 ->count();
 
         $warningCount =
             collect($checks)
-                ->where(
-                    'level',
-                    'warn'
-                )
+                ->where('level', 'warn')
                 ->count();
 
         $status =
@@ -930,12 +775,9 @@ class AdSenseSiteAuditController extends Controller
                 );
 
         return [
-            'id' =>
-                $article->id,
-            'title' =>
-                $article->title,
-            'slug' =>
-                $article->slug,
+            'id' => $article->id,
+            'title' => $article->title,
+            'slug' => $article->slug,
             'url' =>
                 route(
                     'articles.show',
@@ -948,24 +790,16 @@ class AdSenseSiteAuditController extends Controller
                 $article->site?->name,
             'category' =>
                 $article->category?->name,
-            'words' =>
-                $words,
-            'youtube_count' =>
-                $youtubeCount,
+            'words' => $words,
+            'youtube_count' => $youtubeCount,
             'body_image_count' =>
-                count(
-                    $imageSources
-                ),
+                count($imageSources),
             'chapter_count' =>
                 $article->chapters->count(),
-            'status' =>
-                $status,
-            'block_count' =>
-                $blockCount,
-            'warning_count' =>
-                $warningCount,
-            'checks' =>
-                $checks,
+            'status' => $status,
+            'block_count' => $blockCount,
+            'warning_count' => $warningCount,
+            'checks' => $checks,
         ];
     }
 
@@ -996,9 +830,7 @@ class AdSenseSiteAuditController extends Controller
     ): string {
         $text =
             html_entity_decode(
-                strip_tags(
-                    $html
-                ),
+                strip_tags($html),
                 ENT_QUOTES | ENT_HTML5,
                 'UTF-8'
             );
@@ -1015,11 +847,7 @@ class AdSenseSiteAuditController extends Controller
     private function wordCount(
         string $text
     ): int {
-        if (
-            trim(
-                $text
-            ) === ''
-        ) {
+        if (trim($text) === '') {
             return 0;
         }
 
