@@ -3,11 +3,11 @@
 
     const form = document.getElementById('articleForm');
 
-    if (!form || form.dataset.adsenseOneClickV362 === '1') {
+    if (!form || form.dataset.adsenseOneClickV363 === '1') {
         return;
     }
 
-    form.dataset.adsenseOneClickV362 = '1';
+    form.dataset.adsenseOneClickV363 = '1';
 
     const editor = document.getElementById('editor');
     const titleField = form.querySelector('[name="title"]');
@@ -447,7 +447,7 @@
     panel.innerHTML = `
         <div class="as31-head">
             <div>
-                <div class="as31-title">Kiểm tra an toàn AdSense một chạm V3.6.2</div>
+                <div class="as31-title">Kiểm tra an toàn AdSense một chạm V3.6.3</div>
                 <div class="as31-sub">
                     Quét nội dung → tự lưu Draft an toàn → Gemini đánh giá chính sách → kiểm tra Preview/Live → tổng hợp kết quả.
                 </div>
@@ -2279,30 +2279,46 @@
                 'Đang đánh giá giá trị biên tập và các tín hiệu rủi ro chính sách…'
             );
 
-            const ai = await runAiReview(localAfterSave);
+            let ai = null;
+            let aiOverall = 'NEED_REVIEW';
+            let aiUnavailable = false;
 
-            renderAi(ai);
+            try {
+                ai = await runAiReview(localAfterSave);
+                renderAi(ai);
 
-            const aiOverall =
-                String(ai.overall || 'NEED_REVIEW').toUpperCase();
+                aiOverall =
+                    String(ai.overall || 'NEED_REVIEW').toUpperCase();
 
-            if (aiOverall === 'PASS') {
-                addProgress(
-                    'pass',
-                    'Đánh giá chính sách bằng Gemini AI',
-                    'PASS'
-                );
-            } else if (aiOverall === 'HIGH_RISK') {
-                addProgress(
-                    'block',
-                    'Đánh giá chính sách bằng Gemini AI',
-                    'HIGH RISK'
-                );
-            } else {
+                if (aiOverall === 'PASS') {
+                    addProgress('pass', 'Đánh giá chính sách bằng Gemini AI', 'PASS');
+                } else if (aiOverall === 'HIGH_RISK') {
+                    addProgress('block', 'Đánh giá chính sách bằng Gemini AI', 'HIGH RISK');
+                } else {
+                    addProgress('warn', 'Đánh giá chính sách bằng Gemini AI', 'NEED REVIEW');
+                }
+
+            } catch (aiError) {
+                aiUnavailable = true;
+                aiOverall = 'NEED_REVIEW';
+
+                aiSection.style.display = '';
+                aiResult.innerHTML = `
+                    <div class="as31-card">
+                        <strong>Gemini tạm thời không khả dụng</strong>
+                        ${escapeHtml(aiError?.message || 'Gemini đang bận hoặc tạm thời không khả dụng.')}
+                    </div>
+                    <div class="as31-card">
+                        <strong>Hệ thống vẫn tiếp tục</strong>
+                        Preview/Live, Canonical, Ad Structure và Pixel Audit vẫn được chạy.
+                        Kết quả cuối giữ NEED_REVIEW cho đến khi Gemini chạy thành công.
+                    </div>
+                `;
+
                 addProgress(
                     'warn',
                     'Đánh giá chính sách bằng Gemini AI',
-                    'NEED REVIEW'
+                    'Gemini tạm thời không khả dụng — tiếp tục các kiểm tra còn lại.'
                 );
             }
 
@@ -2387,12 +2403,16 @@
                 manualWrap.classList.add('open');
 
             } else if (
+                aiUnavailable ||
                 aiOverall === 'NEED_REVIEW' ||
                 live.warnings > 0 ||
                 hasLocalWarnings
             ) {
                 finalResult = 'NEED_REVIEW';
-                setStatus('CẦN XEM LẠI', 'review');
+                setStatus(
+                    aiUnavailable ? 'CẦN XEM LẠI — GEMINI BẬN' : 'CẦN XEM LẠI',
+                    'review'
+                );
                 manualReviewRequired = true;
                 manualWrap.classList.add('open');
 
