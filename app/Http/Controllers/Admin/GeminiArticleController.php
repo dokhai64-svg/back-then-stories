@@ -13,13 +13,8 @@ class GeminiArticleController extends Controller
 {
     public function generate(Request $request)
     {
-        /*
-         * V4 AI resilience:
-         * give rewrite/chapter jobs enough PHP time while each model attempt
-         * remains individually bounded below.
-         */
-        @ini_set('max_execution_time', '85');
-        @set_time_limit(85);
+        @ini_set('max_execution_time', '95');
+        @set_time_limit(95);
 
         $requestId = 'ai_' . Str::lower(Str::random(8));
 
@@ -113,11 +108,7 @@ class GeminiArticleController extends Controller
             . $articleBodyForPrompt;
 
         /*
-         * V4 SEO fallback chain.
-         *
-         * Prefer stable Flash models. Lite is kept only as the final fallback,
-         * because the recent failures were concentrated on Lite/high-demand
-         * capacity while this task benefits from stronger structured output.
+         * Fast fallback chain.
          */
         $models = [
             'gemini-3.8-flash',
@@ -125,10 +116,12 @@ class GeminiArticleController extends Controller
             'gemini-3.6-flash',
             'gemini-3.5-flash',
             'gemini-3.5-flash-lite',
+            'gemini-2.5-flash',
+            'gemini-2.5-flash-lite',
         ];
 
         $startedAt = microtime(true);
-        $hardBudgetSeconds = 55.0;
+        $hardBudgetSeconds = 75.0;
 
         $lastMessage =
             'Gemini is temporarily unavailable. Please try again.';
@@ -150,19 +143,7 @@ class GeminiArticleController extends Controller
                     ->acceptJson()
                     ->asJson()
                     ->connectTimeout(4)
-                    ->timeout(
-                        (int) max(
-                            10,
-                            min(
-                                18,
-                                floor(
-                                    $hardBudgetSeconds
-                                    - (microtime(true) - $startedAt)
-                                    - 3
-                                )
-                            )
-                        )
-                    )
+                    ->timeout(16)
                     ->post(
                         'https://generativelanguage.googleapis.com/v1beta/interactions',
                         [
@@ -203,7 +184,7 @@ class GeminiArticleController extends Controller
                     'Connection timeout on ' . $model . '.';
 
                 logger()->warning(
-                    'Gemini V4 timeout; trying fallback',
+                    'Gemini timeout; trying fallback',
                     [
                         'request_id' => $requestId,
                         'model' => $model,
@@ -218,7 +199,7 @@ class GeminiArticleController extends Controller
                     'Gemini request error on ' . $model . '.';
 
                 logger()->warning(
-                    'Gemini V4 exception; trying fallback',
+                    'Gemini exception; trying fallback',
                     [
                         'request_id' => $requestId,
                         'model' => $model,
@@ -271,6 +252,19 @@ class GeminiArticleController extends Controller
                             . Str::limit($message, 240, ''),
                         'request_id' => $requestId,
                     ], 502);
+                }
+
+                if (
+                    $this->isTransientGeminiFailure(
+                        $response->status(),
+                        $message
+                    )
+                ) {
+                    usleep(
+                        $this->retryDelayMilliseconds(
+                            $response
+                        ) * 1000
+                    );
                 }
 
                 continue;
@@ -370,7 +364,7 @@ class GeminiArticleController extends Controller
 
         return response()->json([
             'message' =>
-                'AI fallback exhausted the stable Flash model chain. '
+                'AI fallback could not complete the request after trying Gemini 3.x and 2.5 Flash pools. '
                 . Str::limit($lastMessage, 240, ''),
             'request_id' => $requestId,
         ], 503);
@@ -452,13 +446,15 @@ class GeminiArticleController extends Controller
             'gemini-3.6-flash',
             'gemini-3.5-flash',
             'gemini-3.5-flash-lite',
+            'gemini-2.5-flash',
+            'gemini-2.5-flash-lite',
         ];
 
         $startedAt =
             microtime(true);
 
         $hardBudgetSeconds =
-            70.0;
+            75.0;
 
         $lastMessage =
             'Gemini is temporarily unavailable. Please try again.';
@@ -477,11 +473,11 @@ class GeminiArticleController extends Controller
 
             $timeout =
                 (int) max(
-                    10,
+                    5,
                     min(
-                        22,
+                        20,
                         floor(
-                            $remaining - 3
+                            $remaining - 2
                         )
                     )
                 );
@@ -589,6 +585,19 @@ class GeminiArticleController extends Controller
                             ?: 'Gemini chapter analysis failed.'
                         )
                     );
+
+                if (
+                    $this->isTransientGeminiFailure(
+                        $response->status(),
+                        $lastMessage
+                    )
+                ) {
+                    usleep(
+                        $this->retryDelayMilliseconds(
+                            $response
+                        ) * 1000
+                    );
+                }
 
                 continue;
             }
@@ -705,7 +714,7 @@ class GeminiArticleController extends Controller
 
         return response()->json([
             'message' =>
-                'AI could not finish chapter analysis after trying the stable Flash fallback chain. '
+                'AI could not finish chapter analysis after trying Gemini 3.x and 2.5 Flash pools. '
                 . Str::limit(
                     $lastMessage,
                     220,
@@ -820,11 +829,9 @@ PROMPT;
             . $protectedHtml;
 
         /*
-         * V4 rewrite fallback chain.
-         *
-         * Whole-article rewriting is the heaviest job in this controller.
-         * Start with stable full Flash models, then fall back through older
-         * stable Flash generations. Flash-Lite is last-resort only.
+         * Keep this inside Railway/PHP's 30-second request limit.
+         * Whole-article rewriting needs more output time than SEO,
+         * so use only fast models and a strict total budget.
          */
         $models = [
             'gemini-3.8-flash',
@@ -832,10 +839,12 @@ PROMPT;
             'gemini-3.6-flash',
             'gemini-3.5-flash',
             'gemini-3.5-flash-lite',
+            'gemini-2.5-flash',
+            'gemini-2.5-flash-lite',
         ];
 
         $startedAt = microtime(true);
-        $hardBudgetSeconds = 70.0;
+        $hardBudgetSeconds = 75.0;
 
         $lastMessage =
             'Gemini is temporarily unavailable. Please try again.';
@@ -853,13 +862,8 @@ PROMPT;
 
             $timeout =
                 (int) max(
-                    12,
-                    min(
-                        24,
-                        floor(
-                            $remaining - 3
-                        )
-                    )
+                    5,
+                    min(24, floor($remaining - 3))
                 );
 
             try {
@@ -981,6 +985,19 @@ PROMPT;
                     ], 502);
                 }
 
+                if (
+                    $this->isTransientGeminiFailure(
+                        $response->status(),
+                        $message
+                    )
+                ) {
+                    usleep(
+                        $this->retryDelayMilliseconds(
+                            $response
+                        ) * 1000
+                    );
+                }
+
                 continue;
             }
 
@@ -1068,7 +1085,7 @@ PROMPT;
 
         return response()->json([
             'message' =>
-                'AI could not finish the rewrite after trying the stable Flash fallback chain. '
+                'AI could not finish the rewrite after trying Gemini 3.x and 2.5 Flash pools. '
                 . Str::limit(
                     $lastMessage,
                     220,
@@ -1310,6 +1327,51 @@ Before returning:
 4. Every MEDIA token must remain unchanged.
 5. Return exactly one JSON field: rewritten_body.
 PROMPT;
+    }
+
+    private function isTransientGeminiFailure(
+        int $status,
+        string $message
+    ): bool {
+        $lower = mb_strtolower($message);
+
+        return in_array(
+            $status,
+            [408, 409, 429, 500, 502, 503, 504],
+            true
+        )
+            || str_contains($lower, 'high demand')
+            || str_contains($lower, 'temporarily')
+            || str_contains($lower, 'overloaded')
+            || str_contains($lower, 'resource exhausted')
+            || str_contains($lower, 'resource_exhausted')
+            || str_contains($lower, 'unavailable')
+            || str_contains($lower, 'deadline exceeded')
+            || str_contains($lower, 'timeout');
+    }
+
+    private function retryDelayMilliseconds(
+        mixed $response
+    ): int {
+        try {
+            $header = trim(
+                (string) $response->header('Retry-After')
+            );
+
+            if ($header !== '' && ctype_digit($header)) {
+                return min(
+                    2500,
+                    max(
+                        500,
+                        ((int) $header) * 1000
+                    )
+                );
+            }
+        } catch (Throwable $e) {
+            // Fall through to a short bounded delay.
+        }
+
+        return 700;
     }
 
     private function extractOutputText(array $payload): string

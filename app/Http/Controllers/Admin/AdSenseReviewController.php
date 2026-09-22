@@ -167,6 +167,8 @@ PROMPT;
                     'gemini-3.6-flash',
                     'gemini-3.5-flash',
                     'gemini-3.5-flash-lite',
+                    'gemini-2.5-flash',
+                    'gemini-2.5-flash-lite',
                 ])
             )
         );
@@ -184,7 +186,7 @@ PROMPT;
                  */
                 if (
                     (microtime(true) - $startedAt)
-                    > 76
+                    > 78
                 ) {
                     break;
                 }
@@ -232,7 +234,7 @@ PROMPT;
                         . ' timed out.';
 
                     logger()->warning(
-                        'Gemini AdSense V4 model timeout',
+                        'Gemini AdSense V3.3 model timeout',
                         [
                             'model' =>
                                 $model,
@@ -297,7 +299,7 @@ PROMPT;
                         );
 
                     logger()->warning(
-                        'Gemini AdSense V4 model failed',
+                        'Gemini AdSense V3.3 model failed',
                         [
                             'model' =>
                                 $model,
@@ -317,6 +319,28 @@ PROMPT;
                      * fix them.
                      */
                     if ($isTransient) {
+                        $retryAfter =
+                            trim(
+                                (string) $response->header(
+                                    'Retry-After'
+                                )
+                            );
+
+                        $delayMs =
+                            ctype_digit($retryAfter)
+                                ? min(
+                                    2500,
+                                    max(
+                                        500,
+                                        ((int) $retryAfter) * 1000
+                                    )
+                                )
+                                : 700;
+
+                        usleep(
+                            $delayMs * 1000
+                        );
+
                         continue;
                     }
 
@@ -365,7 +389,7 @@ PROMPT;
                         'Gemini không trả về nội dung đánh giá chính sách có thể sử dụng.';
 
                     logger()->warning(
-                        'Gemini AdSense V4 returned no text',
+                        'Gemini AdSense V3.3 returned no text',
                         [
                             'model' =>
                                 $model,
@@ -395,7 +419,7 @@ PROMPT;
                         'Gemini trả về phản hồi đánh giá không hợp lệ.';
 
                     logger()->warning(
-                        'Gemini AdSense V4 JSON parse failed',
+                        'Gemini AdSense V3.3 JSON parse failed',
                         [
                             'model' =>
                                 $model,
@@ -507,7 +531,7 @@ PROMPT;
             report($e);
 
             logger()->error(
-                'Gemini AdSense V4 server error',
+                'Gemini AdSense V3.3 server error',
                 [
                     'exception' =>
                         get_class($e),
