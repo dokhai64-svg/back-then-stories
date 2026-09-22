@@ -545,7 +545,7 @@ PROMPT;
 
         return array_values(array_filter(array_map(
             fn ($item) => $this->cleanLine($item),
-            array_slice($value, 0, 5)
+            array_slice($value, 0, 20)
         )));
     }
 
