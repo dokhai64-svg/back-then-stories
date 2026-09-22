@@ -14,7 +14,7 @@ class GeminiArticleController extends Controller
     public function generate(Request $request)
     {
         /*
-         * V4.3 REGRESSION FIX
+         * V4.4 REWRITE QUALITY FIX
          * Restore the proven long-request behavior used by the working
          * September 14 controller. Recent versions shortened each Gemini
          * attempt too aggressively, causing rewrite/SEO failures.
@@ -812,15 +812,64 @@ PROMPT;
             ''
         );
 
+        $sourceWordCount =
+            count(
+                $this->words(
+                    $sourceHtml
+                )
+            );
+
+        /*
+         * Give Gemini an explicit length target. The previous prompt said
+         * "roughly 80% to 120%" but models sometimes summarized the article
+         * instead, causing the server-side quality guard to reject valid API
+         * responses as "rewritten article became too short".
+         */
+        $minimumTargetWords =
+            max(
+                180,
+                (int) floor(
+                    $sourceWordCount * 0.68
+                )
+            );
+
+        $idealLowWords =
+            max(
+                $minimumTargetWords,
+                (int) floor(
+                    $sourceWordCount * 0.82
+                )
+            );
+
+        $idealHighWords =
+            max(
+                $idealLowWords,
+                (int) ceil(
+                    $sourceWordCount * 1.15
+                )
+            );
+
         $prompt =
             $this->rewritePrompt()
+            . "\n\nLENGTH REQUIREMENT:\n"
+            . "Source article word count: "
+            . $sourceWordCount
+            . " words.\n"
+            . "Do NOT summarize or compress the article. "
+            . "The rewritten article must contain at least "
+            . $minimumTargetWords
+            . " words, and should ideally be between "
+            . $idealLowWords
+            . " and "
+            . $idealHighWords
+            . " words. Preserve the supported factual substance and narrative detail without inventing new facts."
             . "\n\nARTICLE TITLE:\n"
             . trim($title)
             . "\n\nSOURCE BODY HTML:\n"
             . $protectedHtml;
 
         /*
-         * V4.3 REGRESSION FIX
+         * V4.4 REWRITE QUALITY FIX
          * Recent versions forced whole-article rewrite through Lite models
          * with ~14 second attempt limits. Restore the proven stable Flash
          * family and allow enough time for long structured output.
@@ -883,7 +932,7 @@ PROMPT;
                             'input' => $prompt,
                             'generation_config' => [
                                 'thinking_level' => 'low',
-                                'max_output_tokens' => 5000,
+                                'max_output_tokens' => 7000,
                             ],
                             'response_format' => [
                                 'type' => 'text',
@@ -1074,7 +1123,7 @@ PROMPT;
 
         return response()->json([
             'message' =>
-                'AI could not finish the rewrite with the configured stable Gemini pool. '
+                'AI models responded, but no rewrite passed the local originality/quality checks. '
                 . Str::limit(
                     $lastMessage,
                     220,
@@ -1180,11 +1229,26 @@ PROMPT;
         $ratio =
             $rewrittenCount / max(1, $sourceCount);
 
-        if ($ratio < 0.60) {
+        /*
+         * V4.4:
+         * The AI is required to preserve substantive detail, but a genuinely
+         * independent rewrite may naturally be somewhat shorter than the
+         * source. Reject severe compression, not normal editorial tightening.
+         */
+        if ($ratio < 0.52) {
             return [
                 'ok' => false,
                 'reason' =>
-                    'rewritten article became too short',
+                    'rewritten article became too short ('
+                    . $rewrittenCount
+                    . ' vs '
+                    . $sourceCount
+                    . ' words; '
+                    . round(
+                        $ratio * 100,
+                        1
+                    )
+                    . '% of source)',
             ];
         }
 
@@ -1192,7 +1256,16 @@ PROMPT;
             return [
                 'ok' => false,
                 'reason' =>
-                    'rewritten article became too long',
+                    'rewritten article became too long ('
+                    . $rewrittenCount
+                    . ' vs '
+                    . $sourceCount
+                    . ' words; '
+                    . round(
+                        $ratio * 100,
+                        1
+                    )
+                    . '% of source)',
             ];
         }
 
@@ -1296,7 +1369,9 @@ EDITORIAL STYLE
 - No hashtags.
 - Do not add a call to action.
 - Keep approximately the same amount of factual substance as the source.
-- Aim for roughly 80% to 120% of the source length when possible.
+- DO NOT summarize, condense, shorten into a recap, or omit supported narrative details merely to be concise.
+- Preserve the important sequence of events, context, contrasts, turning points, and factual detail.
+- Follow the explicit LENGTH REQUIREMENT supplied after this prompt. That numeric requirement overrides any general preference for brevity.
 
 HTML OUTPUT
 - Return clean article-body HTML only inside the required JSON field.
