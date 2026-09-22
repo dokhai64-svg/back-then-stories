@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Article;
 use App\Models\Site;
-use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Route;
 
 class AdSenseSiteAuditController extends Controller
@@ -13,24 +13,28 @@ class AdSenseSiteAuditController extends Controller
     public function index()
     {
         return view(
-            'admin.adsense-audit.index',
-            [
-                'report' => null,
-            ]
+            'admin.adsense-audit.index'
         );
     }
 
-    public function run(Request $request)
+    public function run(): JsonResponse
     {
         $articles = Article::query()
-            ->where('status', 'published')
+            ->where(
+                'status',
+                'published'
+            )
             ->with([
                 'site',
                 'category',
                 'chapters',
             ])
-            ->orderByDesc('published_at')
-            ->orderByDesc('id')
+            ->orderByDesc(
+                'published_at'
+            )
+            ->orderByDesc(
+                'id'
+            )
             ->get();
 
         $duplicateTitles =
@@ -50,16 +54,20 @@ class AdSenseSiteAuditController extends Controller
         $bodyHashes = [];
 
         foreach ($articles as $article) {
-            $plain =
-                $this->plainText(
-                    (string) $article->body
+            $reviewText =
+                $this->articleReviewText(
+                    $article
                 );
 
-            if ($this->wordCount($plain) >= 80) {
+            if (
+                $this->wordCount(
+                    $reviewText
+                ) >= 80
+            ) {
                 $hash =
                     md5(
                         $this->normalizeText(
-                            $plain
+                            $reviewText
                         )
                     );
 
@@ -69,97 +77,150 @@ class AdSenseSiteAuditController extends Controller
         }
 
         $duplicateBodies =
-            collect($bodyHashes)
+            collect(
+                $bodyHashes
+            )
                 ->filter(
                     fn ($ids) =>
                         count($ids) > 1
                 );
 
-        $articleReports =
+        $reports =
             $articles
                 ->map(
-                    function (
-                        Article $article
-                    ) use (
-                        $duplicateTitles,
-                        $duplicateBodies
-                    ) {
-                        return $this->auditArticle(
+                    fn (Article $article) =>
+                        $this->auditArticle(
                             $article,
                             $duplicateTitles,
                             $duplicateBodies
-                        );
-                    }
+                        )
                 )
                 ->values();
 
         $siteChecks =
             $this->auditSite();
 
-        $articleBlocks =
-            $articleReports
-                ->sum('block_count');
-
-        $articleWarnings =
-            $articleReports
-                ->sum('warning_count');
-
         $siteBlocks =
-            collect($siteChecks)
-                ->where('level', 'block')
+            collect(
+                $siteChecks
+            )
+                ->where(
+                    'level',
+                    'block'
+                )
                 ->count();
 
         $siteWarnings =
-            collect($siteChecks)
-                ->where('level', 'warn')
+            collect(
+                $siteChecks
+            )
+                ->where(
+                    'level',
+                    'warn'
+                )
                 ->count();
 
-        $status =
-            ($siteBlocks + $articleBlocks) > 0
-                ? 'BLOCK'
-                : (
-                    ($siteWarnings + $articleWarnings) > 0
-                        ? 'NEED_REVIEW'
-                        : 'READY'
-                );
+        $aiCandidates =
+            $reports
+                ->filter(
+                    fn (array $report) =>
+                        $report[
+                            'ai_review_needed'
+                        ]
+                )
+                ->map(
+                    function (
+                        array $report
+                    ) use (
+                        $articles
+                    ) {
+                        /** @var Article|null $article */
+                        $article =
+                            $articles->firstWhere(
+                                'id',
+                                $report['id']
+                            );
 
-        $report = [
-            'generated_at' => now(),
-            'status' => $status,
-            'published_count' => $articles->count(),
-            'site_checks' => $siteChecks,
-            'articles' => $articleReports,
-            'summary' => [
-                'site_blocks' => $siteBlocks,
-                'site_warnings' => $siteWarnings,
-                'article_blocks' => $articleBlocks,
-                'article_warnings' => $articleWarnings,
-                'ready_articles' =>
-                    $articleReports
-                        ->where('status', 'READY')
-                        ->count(),
-                'review_articles' =>
-                    $articleReports
-                        ->where('status', 'NEED_REVIEW')
-                        ->count(),
-                'blocked_articles' =>
-                    $articleReports
-                        ->where('status', 'BLOCK')
-                        ->count(),
-            ],
+                        if (!$article) {
+                            return null;
+                        }
+
+                        return [
+                            'article_id' =>
+                                $article->id,
+                            'title' =>
+                                (string) $article->title,
+                            'body' =>
+                                $this->articleReviewHtml(
+                                    $article
+                                ),
+                            'youtube_count' =>
+                                $report[
+                                    'youtube_count'
+                                ],
+                            'image_count' =>
+                                $report[
+                                    'body_image_count'
+                                ]
+                                + (
+                                    $article->featured_image
+                                        ? 1
+                                        : 0
+                                ),
+                        ];
+                    }
+                )
+                ->filter()
+                ->values();
+
+        return response()->json([
+            'published_count' =>
+                $articles->count(),
+            'ai_candidate_count' =>
+                $aiCandidates->count(),
+            'site_blocks' =>
+                $siteBlocks,
+            'site_warnings' =>
+                $siteWarnings,
+            'site_checks' =>
+                $siteChecks,
+            'articles' =>
+                $reports,
+            'ai_candidates' =>
+                $aiCandidates,
             'manual_checks' => [
-                'Quyền sử dụng ảnh/video/media vẫn phải được xác minh thủ công.',
+                'Quyền sử dụng ảnh/video/media phải được xác minh thủ công; hệ thống không thể chứng minh license.',
                 'Không tự click quảng cáo và không khuyến khích người dùng click quảng cáo.',
-                'Sau khi quảng cáo thật được Google phân phối, kiểm tra lại Desktop và Mobile.',
-                'Kiểm tra AdSense Policy Center sau khi site bắt đầu có ad serving.',
-                'Rà soát chính sách Google mới nhất trước khi gửi Request Review.',
+                'Sau khi Google thực sự phân phối ads, kiểm tra lại bố cục Desktop/Mobile và Policy Center.',
+                'Rà soát Google Publisher Policies / Restrictions mới nhất trước khi gửi Request Review.',
             ],
-        ];
-
-        return view(
-            'admin.adsense-audit.index',
-            compact('report')
-        );
+            'policy_links' => [
+                [
+                    'label' =>
+                        'AdSense Program Policies',
+                    'url' =>
+                        'https://support.google.com/adsense/answer/48182',
+                ],
+                [
+                    'label' =>
+                        'Google Publisher Policies',
+                    'url' =>
+                        'https://support.google.com/publisherpolicies/answer/10502938',
+                ],
+                [
+                    'label' =>
+                        'Replicated Content',
+                    'url' =>
+                        'https://support.google.com/publisherpolicies/answer/11190248',
+                ],
+                [
+                    'label' =>
+                        'Ads vs Publisher Content',
+                    'url' =>
+                        'https://support.google.com/publisherpolicies/answer/11169917',
+                ],
+            ],
+        ]);
     }
 
     private function auditSite(): array
@@ -173,15 +234,20 @@ class AdSenseSiteAuditController extends Controller
                 string $detail
             ) use (&$checks): void {
                 $checks[] = [
-                    'level' => $level,
-                    'title' => $title,
-                    'detail' => $detail,
+                    'level' =>
+                        $level,
+                    'title' =>
+                        $title,
+                    'detail' =>
+                        $detail,
                 ];
             };
 
         $appUrl =
             trim(
-                (string) config('app.url')
+                (string) config(
+                    'app.url'
+                )
             );
 
         $appHost =
@@ -213,17 +279,24 @@ class AdSenseSiteAuditController extends Controller
 
         $activeSites =
             Site::query()
-                ->where('active', true)
+                ->where(
+                    'active',
+                    true
+                )
                 ->get();
 
-        if ($activeSites->isEmpty()) {
+        if (
+            $activeSites->isEmpty()
+        ) {
             $add(
                 'block',
                 'Site identity',
                 'Không có site active trong CMS.'
             );
         } else {
-            foreach ($activeSites as $site) {
+            foreach (
+                $activeSites as $site
+            ) {
                 $domain =
                     mb_strtolower(
                         trim(
@@ -249,24 +322,39 @@ class AdSenseSiteAuditController extends Controller
                     $add(
                         'pass',
                         'Domain',
-                        $domain ?: $appHost
+                        $domain
+                        ?: $appHost
                     );
                 }
             }
         }
 
-        $routes = [
-            'home' => 'Homepage',
-            'about' => 'About',
-            'contact' => 'Contact',
-            'privacy' => 'Privacy',
-            'terms' => 'Terms',
-            'editorial' => 'Editorial Policy',
-            'articles.show' => 'Public article route',
+        $routeChecks = [
+            'home' =>
+                'Homepage',
+            'articles.show' =>
+                'Public article route',
+            'about' =>
+                'About',
+            'contact' =>
+                'Contact',
+            'privacy' =>
+                'Privacy',
+            'terms' =>
+                'Terms',
+            'editorial' =>
+                'Editorial Policy',
         ];
 
-        foreach ($routes as $routeName => $label) {
-            if (Route::has($routeName)) {
+        foreach (
+            $routeChecks
+            as $routeName => $label
+        ) {
+            if (
+                Route::has(
+                    $routeName
+                )
+            ) {
                 $add(
                     'pass',
                     $label,
@@ -283,16 +371,28 @@ class AdSenseSiteAuditController extends Controller
             }
         }
 
-        $views = [
-            'pages.about' => 'About page',
-            'pages.contact' => 'Contact page',
-            'pages.privacy' => 'Privacy page',
-            'pages.terms' => 'Terms page',
-            'pages.editorial' => 'Editorial Policy page',
+        $viewChecks = [
+            'pages.about' =>
+                'About page',
+            'pages.contact' =>
+                'Contact page',
+            'pages.privacy' =>
+                'Privacy page',
+            'pages.terms' =>
+                'Terms page',
+            'pages.editorial' =>
+                'Editorial Policy page',
         ];
 
-        foreach ($views as $viewName => $label) {
-            if (view()->exists($viewName)) {
+        foreach (
+            $viewChecks
+            as $viewName => $label
+        ) {
+            if (
+                view()->exists(
+                    $viewName
+                )
+            ) {
                 $add(
                     'pass',
                     $label,
@@ -314,7 +414,11 @@ class AdSenseSiteAuditController extends Controller
                 'views/pages/privacy.blade.php'
             );
 
-        if (is_file($privacyPath)) {
+        if (
+            is_file(
+                $privacyPath
+            )
+        ) {
             $privacy =
                 mb_strtolower(
                     (string) file_get_contents(
@@ -322,19 +426,19 @@ class AdSenseSiteAuditController extends Controller
                     )
                 );
 
-            $privacyHasGoogle =
+            $hasGoogle =
                 str_contains(
                     $privacy,
                     'google'
                 );
 
-            $privacyHasCookies =
+            $hasCookie =
                 str_contains(
                     $privacy,
                     'cookie'
                 );
 
-            $privacyHasAds =
+            $hasAdvertising =
                 str_contains(
                     $privacy,
                     'adsense'
@@ -345,28 +449,34 @@ class AdSenseSiteAuditController extends Controller
                 );
 
             if (
-                $privacyHasGoogle
-                && $privacyHasCookies
-                && $privacyHasAds
+                $hasGoogle
+                && $hasCookie
+                && $hasAdvertising
             ) {
                 $add(
                     'pass',
                     'Privacy advertising disclosure',
-                    'Privacy page có đề cập Google, cookies và advertising/AdSense.'
+                    'Privacy page có Google, cookies và advertising/AdSense.'
                 );
             } else {
                 $add(
                     'warn',
                     'Privacy advertising disclosure',
-                    'Privacy page nên được kiểm tra lại phần Google advertising/cookies.'
+                    'Kiểm tra lại phần Google advertising/cookies trong Privacy page.'
                 );
             }
         }
 
         $adsTxtPath =
-            public_path('ads.txt');
+            public_path(
+                'ads.txt'
+            );
 
-        if (is_file($adsTxtPath)) {
+        if (
+            is_file(
+                $adsTxtPath
+            )
+        ) {
             $adsTxt =
                 trim(
                     (string) file_get_contents(
@@ -389,7 +499,7 @@ class AdSenseSiteAuditController extends Controller
                 $add(
                     'warn',
                     'ads.txt',
-                    'Có file ads.txt nhưng chưa nhận diện được Google DIRECT record chuẩn.'
+                    'Có ads.txt nhưng chưa nhận diện Google DIRECT record chuẩn.'
                 );
             }
         } else {
@@ -405,7 +515,11 @@ class AdSenseSiteAuditController extends Controller
                 'views/layouts/app.blade.php'
             );
 
-        if (is_file($publicLayout)) {
+        if (
+            is_file(
+                $publicLayout
+            )
+        ) {
             $layout =
                 (string) file_get_contents(
                     $publicLayout
@@ -423,13 +537,13 @@ class AdSenseSiteAuditController extends Controller
             ) {
                 $add(
                     'pass',
-                    'AdSense verification script',
+                    'AdSense script',
                     'Tìm thấy AdSense script trong public layout.'
                 );
             } else {
                 $add(
                     'warn',
-                    'AdSense verification script',
+                    'AdSense script',
                     'Chưa nhận diện được AdSense script trong public layout.'
                 );
             }
@@ -452,9 +566,12 @@ class AdSenseSiteAuditController extends Controller
                 string $detail
             ) use (&$checks): void {
                 $checks[] = [
-                    'level' => $level,
-                    'title' => $title,
-                    'detail' => $detail,
+                    'level' =>
+                        $level,
+                    'title' =>
+                        $title,
+                    'detail' =>
+                        $detail,
                 ];
             };
 
@@ -462,10 +579,14 @@ class AdSenseSiteAuditController extends Controller
             (string) $article->body;
 
         $plain =
-            $this->plainText($body);
+            $this->plainText(
+                $body
+            );
 
         $words =
-            $this->wordCount($plain);
+            $this->wordCount(
+                $plain
+            );
 
         $placeholderTerms = [
             'lorem ipsum',
@@ -514,19 +635,27 @@ class AdSenseSiteAuditController extends Controller
             );
         }
 
-        if ($words < 120) {
+        /*
+         * Internal editorial heuristics only.
+         * Google does not publish an official minimum word count.
+         */
+        if (
+            $words < 120
+        ) {
             $add(
                 'block',
                 'Publisher content',
                 $words
-                . ' từ. Nội dung quá ít để coi là bài hoàn chỉnh.'
+                . ' từ. Bài quá thiếu nội dung để coi là hoàn chỉnh.'
             );
-        } elseif ($words < 400) {
+        } elseif (
+            $words < 400
+        ) {
             $add(
                 'warn',
                 'Publisher content',
                 $words
-                . ' từ. Đây là cảnh báo biên tập nội bộ, không phải minimum word count của Google.'
+                . ' từ. Cần xem lại giá trị biên tập; đây không phải minimum word count của Google.'
             );
         } else {
             $add(
@@ -565,7 +694,9 @@ class AdSenseSiteAuditController extends Controller
                 $youtubeCount
                 . ' YouTube reference/embed nhưng publisher text tương đối ít.'
             );
-        } elseif ($youtubeCount > 0) {
+        } elseif (
+            $youtubeCount > 0
+        ) {
             $add(
                 'pass',
                 'YouTube / embed',
@@ -597,7 +728,9 @@ class AdSenseSiteAuditController extends Controller
                     $imageSources,
                     fn ($src) =>
                         str_starts_with(
-                            mb_strtolower($src),
+                            mb_strtolower(
+                                $src
+                            ),
                             'data:image/'
                         )
                 )
@@ -607,8 +740,10 @@ class AdSenseSiteAuditController extends Controller
             $add(
                 'warn',
                 'External images',
-                count($externalImages)
-                . ' ảnh external. Cần kiểm tra quyền sử dụng và hotlink.'
+                count(
+                    $externalImages
+                )
+                . ' ảnh external. Kiểm tra quyền sử dụng và hotlink.'
             );
         }
 
@@ -616,8 +751,10 @@ class AdSenseSiteAuditController extends Controller
             $add(
                 'warn',
                 'Base64 images',
-                count($base64Images)
-                . ' ảnh base64; nên chuyển vào Media Library/storage.'
+                count(
+                    $base64Images
+                )
+                . ' ảnh base64. Nên chuyển vào Media Library/storage.'
             );
         }
 
@@ -637,15 +774,18 @@ class AdSenseSiteAuditController extends Controller
                 (string) $article->title
             );
 
-        if (
+        $duplicateTitle =
             $normalizedTitle !== ''
             && $duplicateTitles->has(
                 $normalizedTitle
-            )
-        ) {
+            );
+
+        if ($duplicateTitle) {
             $ids =
                 $duplicateTitles
-                    ->get($normalizedTitle)
+                    ->get(
+                        $normalizedTitle
+                    )
                     ->pluck('id')
                     ->implode(', ');
 
@@ -658,11 +798,23 @@ class AdSenseSiteAuditController extends Controller
             );
         }
 
-        if ($words >= 80) {
+        $exactDuplicateBody =
+            false;
+
+        $reviewText =
+            $this->articleReviewText(
+                $article
+            );
+
+        if (
+            $this->wordCount(
+                $reviewText
+            ) >= 80
+        ) {
             $bodyHash =
                 md5(
                     $this->normalizeText(
-                        $plain
+                        $reviewText
                     )
                 );
 
@@ -671,17 +823,22 @@ class AdSenseSiteAuditController extends Controller
                     $bodyHash
                 )
             ) {
+                $exactDuplicateBody =
+                    true;
+
                 $ids =
                     implode(
                         ', ',
                         $duplicateBodies
-                            ->get($bodyHash)
+                            ->get(
+                                $bodyHash
+                            )
                     );
 
                 $add(
                     'block',
                     'Exact duplicate body',
-                    'Nội dung body trùng hoàn toàn với article ID: '
+                    'Nội dung bài/chapter trùng hoàn toàn với article ID: '
                     . $ids
                     . '.'
                 );
@@ -712,7 +869,9 @@ class AdSenseSiteAuditController extends Controller
             );
         }
 
-        if (!$article->category_id) {
+        if (
+            !$article->category_id
+        ) {
             $add(
                 'warn',
                 'Category',
@@ -720,18 +879,13 @@ class AdSenseSiteAuditController extends Controller
             );
         }
 
+        $chapterWarnings =
+            0;
+
         if (
             $article->content_mode === 'chapter'
             && $article->chapters->count()
         ) {
-            if ($words < 120) {
-                $add(
-                    'warn',
-                    'Chapter landing',
-                    'Trang mở đầu Chapter có ít publisher text; nên kiểm tra Preview thực tế.'
-                );
-            }
-
             foreach (
                 $article->chapters
                 as $chapter
@@ -743,7 +897,11 @@ class AdSenseSiteAuditController extends Controller
                         )
                     );
 
-                if ($chapterWords < 120) {
+                if (
+                    $chapterWords < 120
+                ) {
+                    $chapterWarnings++;
+
                     $add(
                         'warn',
                         'Chapter '
@@ -756,13 +914,23 @@ class AdSenseSiteAuditController extends Controller
         }
 
         $blockCount =
-            collect($checks)
-                ->where('level', 'block')
+            collect(
+                $checks
+            )
+                ->where(
+                    'level',
+                    'block'
+                )
                 ->count();
 
         $warningCount =
-            collect($checks)
-                ->where('level', 'warn')
+            collect(
+                $checks
+            )
+                ->where(
+                    'level',
+                    'warn'
+                )
                 ->count();
 
         $status =
@@ -774,10 +942,25 @@ class AdSenseSiteAuditController extends Controller
                         : 'READY'
                 );
 
+        /*
+         * Rule-based scan cannot truly judge originality/replicated-content.
+         * Only send plausible content-risk cases to Gemini.
+         */
+        $aiReviewNeeded =
+            $blockCount === 0
+            && (
+                $words < 500
+                || $youtubeCount > 0
+                || $duplicateTitle
+                || $chapterWarnings > 0
+                || $warningCount > 0
+            );
+
         return [
-            'id' => $article->id,
-            'title' => $article->title,
-            'slug' => $article->slug,
+            'id' =>
+                $article->id,
+            'title' =>
+                $article->title,
             'url' =>
                 route(
                     'articles.show',
@@ -786,21 +969,93 @@ class AdSenseSiteAuditController extends Controller
                             $article->slug,
                     ]
                 ),
-            'site' =>
-                $article->site?->name,
             'category' =>
                 $article->category?->name,
-            'words' => $words,
-            'youtube_count' => $youtubeCount,
+            'words' =>
+                $words,
+            'youtube_count' =>
+                $youtubeCount,
             'body_image_count' =>
-                count($imageSources),
+                count(
+                    $imageSources
+                ),
             'chapter_count' =>
                 $article->chapters->count(),
-            'status' => $status,
-            'block_count' => $blockCount,
-            'warning_count' => $warningCount,
-            'checks' => $checks,
+            'status' =>
+                $status,
+            'block_count' =>
+                $blockCount,
+            'warning_count' =>
+                $warningCount,
+            'ai_review_needed' =>
+                $aiReviewNeeded,
+            'checks' =>
+                $checks,
         ];
+    }
+
+    private function articleReviewText(
+        Article $article
+    ): string {
+        $parts = [
+            $this->plainText(
+                (string) $article->body
+            ),
+        ];
+
+        foreach (
+            $article->chapters
+            as $chapter
+        ) {
+            $parts[] =
+                trim(
+                    (string) $chapter->title
+                );
+
+            $parts[] =
+                $this->plainText(
+                    (string) $chapter->body
+                );
+        }
+
+        return trim(
+            implode(
+                "\n",
+                array_filter(
+                    $parts
+                )
+            )
+        );
+    }
+
+    private function articleReviewHtml(
+        Article $article
+    ): string {
+        $html =
+            (string) $article->body;
+
+        foreach (
+            $article->chapters
+            as $chapter
+        ) {
+            $html .=
+                '<h2>'
+                . e(
+                    (string) (
+                        $chapter->title
+                        ?: (
+                            'Chapter '
+                            . $chapter->chapter_number
+                        )
+                    )
+                )
+                . '</h2>';
+
+            $html .=
+                (string) $chapter->body;
+        }
+
+        return $html;
     }
 
     private function extractImageSources(
@@ -830,7 +1085,9 @@ class AdSenseSiteAuditController extends Controller
     ): string {
         $text =
             html_entity_decode(
-                strip_tags($html),
+                strip_tags(
+                    $html
+                ),
                 ENT_QUOTES | ENT_HTML5,
                 'UTF-8'
             );
@@ -847,7 +1104,11 @@ class AdSenseSiteAuditController extends Controller
     private function wordCount(
         string $text
     ): int {
-        if (trim($text) === '') {
+        if (
+            trim(
+                $text
+            ) === ''
+        ) {
             return 0;
         }
 
