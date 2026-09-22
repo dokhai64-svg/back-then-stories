@@ -32,7 +32,7 @@ const progress=document.getElementById('auditProgress');
 const output=document.getElementById('auditOutput');
 const ruleUrl=@json(route('admin.adsense-audit.run'));
 const aiUrl=@json(route('admin.articles.adsense-review'));
-const csrf=document.querySelector('meta[name="csrf-token"]')?.content||'';
+const csrf=@json(csrf_token());
 
 const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 const levelText=l=>l==='pass'?'PASS':l==='block'?'BLOCK':l==='warn'?'REVIEW':'INFO';
@@ -47,7 +47,8 @@ function finalStatus(article,ai){
     return'READY';
 }
 function renderBase(data){
-    const rows=data.articles.map(a=>`
+    const articles=Array.isArray(data.articles)?data.articles:[];
+    const rows=articles.map(a=>`
         <tr data-article-id="${a.id}">
             <td class="article-status">${badge(a.status)}</td>
             <td style="min-width:300px">
@@ -70,7 +71,7 @@ function renderBase(data){
             <div class="audit-stat">Site BLOCK<b>${data.site_blocks}</b></div>
             <div class="audit-stat">Site REVIEW<b>${data.site_warnings}</b></div>
         </div>
-        <section class="audit-card"><h2>Rule-based Site Check</h2><div class="audit-checks">${data.site_checks.map(ruleCheck).join('')}</div></section>
+        <section class="audit-card"><h2>Rule-based Site Check</h2><div class="audit-checks">${(Array.isArray(data.site_checks)?data.site_checks:[]).map(ruleCheck).join('')}</div></section>
         <section class="audit-card"><h2>Published Articles</h2><div class="audit-table-wrap"><table class="audit-table">
             <thead><tr><th>Final</th><th>Article</th><th>Words</th><th>YouTube</th><th>Images</th><th>Rule issues</th></tr></thead>
             <tbody>${rows||'<tr><td colspan="6">Chưa có Published Article.</td></tr>'}</tbody>
@@ -91,27 +92,31 @@ function renderAi(id,r){
 }
 function renderFinal(data,aiResults){
     let ready=0,review=0,block=0;
-    data.articles.forEach(a=>{
+    (Array.isArray(data.articles)?data.articles:[]).forEach(a=>{
         const s=finalStatus(a,aiResults[a.id]||null);
         if(s==='READY')ready++;else if(s==='BLOCK')block++;else review++;
         const row=document.querySelector(`tr[data-article-id="${a.id}"]`);
         if(row)row.querySelector('.article-status').innerHTML=badge(s);
     });
     const final=(data.site_blocks>0||block>0)?'BLOCK':(data.site_warnings>0||review>0)?'NEED_REVIEW':'READY';
-    document.getElementById('finalSummaryBody').innerHTML=`<div style="margin-bottom:10px">${badge(final)}</div><div>READY: <b>${ready}</b> · NEED REVIEW: <b>${review}</b> · BLOCK: <b>${block}</b></div>`;
+    const manual=(Array.isArray(data.manual_checks)?data.manual_checks:[]).map(x=>`<li>${esc(x)}</li>`).join('');
+    const policy=(Array.isArray(data.policy_links)?data.policy_links:[]).map(x=>`<a href="${esc(x.url)}" target="_blank" rel="noopener" style="display:inline-flex;margin:5px 7px 0 0;padding:6px 8px;border:1px solid #dbe3ec;border-radius:7px;color:#2563eb;text-decoration:none;font-size:10px">${esc(x.label)} ↗</a>`).join('');
+    document.getElementById('finalSummaryBody').innerHTML=`<div style="margin-bottom:10px">${badge(final)}</div><div>READY: <b>${ready}</b> · NEED REVIEW: <b>${review}</b> · BLOCK: <b>${block}</b></div>${manual?`<div style="margin-top:16px"><b>Kiểm tra thủ công bắt buộc</b><ul style="margin:7px 0 0 18px">${manual}</ul></div>`:''}${policy?`<div style="margin-top:14px"><b>Google Policy References</b><div>${policy}</div></div>`:''}`;
 }
 runButton.addEventListener('click',async()=>{
     runButton.disabled=true;const old=runButton.textContent;runButton.textContent='Đang quét toàn site…';
     progress.classList.add('open');progress.textContent='Bước 1/3 — Rule-based scan toàn bộ Published Articles…';output.innerHTML='';
     try{
         const r=await fetch(ruleUrl,{method:'POST',credentials:'same-origin',headers:{'Accept':'application/json','Content-Type':'application/json','X-CSRF-TOKEN':csrf},body:'{}'});
-        const data=await r.json();if(!r.ok)throw new Error(data.message||'Site-wide rule scan failed.');
+        let data={};try{data=await r.json()}catch(e){}
+        if(!r.ok)throw new Error(data.message||`Site-wide rule scan failed (HTTP ${r.status}).`);
         renderBase(data);
         const aiResults={};
-        if(data.ai_candidates.length){
-            for(let i=0;i<data.ai_candidates.length;i++){
-                const c=data.ai_candidates[i];
-                progress.textContent=`Bước 2/3 — Gemini ${i+1}/${data.ai_candidates.length}: ${c.title}`;
+        const candidates=Array.isArray(data.ai_candidates)?data.ai_candidates:[];
+        if(candidates.length){
+            for(let i=0;i<candidates.length;i++){
+                const c=candidates[i];
+                progress.textContent=`Bước 2/3 — Gemini ${i+1}/${candidates.length}: ${c.title}`;
                 try{const res=await runAi(c);aiResults[c.article_id]=res;renderAi(c.article_id,res);}
                 catch(e){aiResults[c.article_id]={overall:'NEED_REVIEW',original_value:'AI review không hoàn tất: '+(e.message||'unknown error'),required_fixes:['Chạy lại AI review cho bài này.']};renderAi(c.article_id,aiResults[c.article_id]);}
             }
