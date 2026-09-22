@@ -3,11 +3,11 @@
 
     const form = document.getElementById('articleForm');
 
-    if (!form || form.dataset.adsenseOneClickV363 === '1') {
+    if (!form || form.dataset.adsenseOneClickV37 === '1') {
         return;
     }
 
-    form.dataset.adsenseOneClickV363 = '1';
+    form.dataset.adsenseOneClickV37 = '1';
 
     const editor = document.getElementById('editor');
     const titleField = form.querySelector('[name="title"]');
@@ -176,6 +176,45 @@
                 font-size:10px;
                 line-height:1.45;
             }
+            .as37-summary{
+                margin-top:12px;
+                padding:11px;
+                border:1px solid #e5e7eb;
+                border-radius:9px;
+                background:#fbfdff;
+            }
+            .as37-grid{
+                display:grid;
+                grid-template-columns:1fr auto;
+                gap:6px 10px;
+                font-size:11px;
+            }
+            .as37-state{font-weight:850}
+            .as37-final{
+                margin-top:12px;
+                padding:13px;
+                border-radius:10px;
+                border:1px solid #dbe3ec;
+                font-size:11px;
+                line-height:1.5;
+            }
+            .as37-final.pass{background:#eefaf2;border-color:#b9e4c7;color:#166534}
+            .as37-final.review{background:#fff9e8;border-color:#f1df9c;color:#854d0e}
+            .as37-final.block{background:#fff0f0;border-color:#f0b9b9;color:#991b1b}
+            .as37-final strong{display:block;font-size:13px;margin-bottom:5px}
+            .as37-retry{
+                margin-top:8px;
+                min-height:36px;
+                border:0;
+                border-radius:8px;
+                background:#334155;
+                color:#fff;
+                font-size:11px;
+                font-weight:800;
+                padding:0 12px;
+                cursor:pointer;
+            }
+            .as37-retry:disabled{opacity:.6;cursor:wait}
         `;
 
         document.head.appendChild(style);
@@ -221,7 +260,22 @@
 
     function describeAd(ad, index) {
         if (!ad) {
-            return 'Ad slot #' + (index + 1);
+            return 'Ad #' + (index + 1);
+        }
+
+        const classes =
+            String(ad.className || '');
+
+        if (/before-related/i.test(classes)) {
+            return 'Ad #' + (index + 1) + ' — Bottom / Before Related Stories';
+        }
+
+        if (/after-interactive/i.test(classes)) {
+            return 'Ad #' + (index + 1) + ' — After Interactive';
+        }
+
+        if (/in-body/i.test(classes)) {
+            return 'Ad #' + (index + 1) + ' — In-body';
         }
 
         const explicit =
@@ -231,24 +285,60 @@
             || ad.id
             || '';
 
-        if (explicit) {
-            return explicit;
+        return explicit
+            ? 'Ad #' + (index + 1) + ' — ' + explicit
+            : 'Ad #' + (index + 1);
+    }
+
+    function normalizeWords(value) {
+        return String(value || '')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9\s-]/g, ' ')
+            .replace(/-/g, ' ')
+            .split(/\s+/)
+            .filter(Boolean);
+    }
+
+    function titleSlugConsistency() {
+        const title = (titleField?.value || '').trim();
+        const slug = (slugField?.value || '').trim();
+
+        if (!title || !slug) {
+            return {
+                level: 'warn',
+                detail: 'Không đủ Title hoặc Slug để đối chiếu.'
+            };
         }
 
-        const classes =
-            String(ad.className || '')
-                .trim()
-                .split(/\s+/)
-                .filter(Boolean)
-                .filter(name =>
-                    /ad|banner|policy/i.test(name)
-                )
-                .slice(0, 3)
-                .join('.');
+        const stop = new Set([
+            'the','a','an','and','or','but','of','to','in','on','for','with',
+            'from','by','at','is','was','were','be','been','being','had','has',
+            'have','his','her','their','our','your','this','that','these','those',
+            'behind','life','story','legacy','complex','everything','america',
+            'thought','star','could','want','quality','falling','apart'
+        ]);
 
-        return classes
-            ? '.' + classes
-            : 'Ad slot #' + (index + 1);
+        const titleTokens = normalizeWords(title)
+            .filter(x => x.length >= 4 && !stop.has(x));
+
+        const slugTokens = normalizeWords(slug)
+            .filter(x => x.length >= 4 && !stop.has(x));
+
+        const overlap = titleTokens.filter(x => slugTokens.includes(x));
+
+        if (overlap.length > 0) {
+            return {
+                level: 'pass',
+                detail: 'Title và Slug có tín hiệu nội dung khớp: ' + overlap.slice(0, 4).join(', ') + '.'
+            };
+        }
+
+        return {
+            level: 'warn',
+            detail: 'Title và Slug gần như không có từ khóa nội dung chung. Hãy kiểm tra xem Slug có thuộc bài cũ hay không.'
+        };
     }
 
     function listHtml(items) {
@@ -447,7 +537,7 @@
     panel.innerHTML = `
         <div class="as31-head">
             <div>
-                <div class="as31-title">Kiểm tra an toàn AdSense một chạm V3.6.3</div>
+                <div class="as31-title">Kiểm tra an toàn AdSense một chạm V3.7</div>
                 <div class="as31-sub">
                     Quét nội dung → tự lưu Draft an toàn → Gemini đánh giá chính sách → kiểm tra Preview/Live → tổng hợp kết quả.
                 </div>
@@ -470,6 +560,9 @@
             <div class="as31-section-title">Kiểm tra trang Preview / Live</div>
             <div id="as31LiveResult"></div>
         </div>
+
+        <div id="as37Summary" class="as37-summary" style="display:none"></div>
+        <div id="as37Final" class="as37-final" style="display:none"></div>
 
         <div id="as31Manual" class="as31-manual">
             <label>
@@ -502,6 +595,14 @@
     const liveResult = document.getElementById('as31LiveResult');
     const manualWrap = document.getElementById('as31Manual');
     const manualBox = document.getElementById('as31ManualBox');
+    const summaryBox = document.getElementById('as37Summary');
+    const finalBox = document.getElementById('as37Final');
+
+    let lastLocalAfterSave = null;
+    let lastLiveAudit = null;
+    let lastAiOverall = 'NEED_REVIEW';
+    let lastAiUnavailable = false;
+    let lastHasLocalWarnings = false;
 
     function setStatus(text, cls = '') {
         statusBadge.textContent = text;
@@ -537,6 +638,154 @@
         addProgress(level, title, detail, key);
     }
 
+    function stateLabel(value) {
+        if (value === 'PASS') return '<span class="as37-state" style="color:#166534">PASS</span>';
+        if (value === 'BLOCK') return '<span class="as37-state" style="color:#991b1b">BLOCK</span>';
+        if (value === 'UNAVAILABLE') return '<span class="as37-state" style="color:#854d0e">UNAVAILABLE</span>';
+        return '<span class="as37-state" style="color:#854d0e">NEED REVIEW</span>';
+    }
+
+    function renderSummaryAndFinal() {
+        if (!lastLiveAudit) return;
+
+        const localState = lastHasLocalWarnings ? 'NEED_REVIEW' : 'PASS';
+        const aiState = lastAiUnavailable
+            ? 'UNAVAILABLE'
+            : (lastAiOverall === 'HIGH_RISK' ? 'BLOCK' : lastAiOverall);
+        const liveState = lastLiveAudit.blocks > 0
+            ? 'BLOCK'
+            : (lastLiveAudit.warnings > 0 ? 'NEED_REVIEW' : 'PASS');
+        const pixelState = (lastLiveAudit.pixelBlocks || 0) > 0
+            ? 'BLOCK'
+            : ((lastLiveAudit.pixelWarnings || 0) > 0 ? 'NEED_REVIEW' : 'PASS');
+
+        summaryBox.style.display = '';
+        summaryBox.innerHTML = `
+            <div class="as31-section-title">Tóm tắt kiểm tra</div>
+            <div class="as37-grid">
+                <div>Local Content</div><div>${stateLabel(localState)}</div>
+                <div>Gemini AI</div><div>${stateLabel(aiState)}</div>
+                <div>Preview / Live</div><div>${stateLabel(liveState)}</div>
+                <div>Pixel Desktop + Mobile</div><div>${stateLabel(pixelState)}</div>
+            </div>
+        `;
+
+        let cls = 'pass';
+        let title = '✓ PASS — CÓ THỂ XUẤT BẢN';
+        let detail = 'Không phát hiện BLOCK hoặc NEED REVIEW trong bộ kiểm tra nội bộ hiện tại.';
+
+        if (lastAiOverall === 'HIGH_RISK' || lastLiveAudit.blocks > 0) {
+            cls = 'block';
+            title = '✕ KHÔNG PASS — BLOCK';
+            detail = 'Có lỗi cần xử lý trước khi Publish. Sửa các mục BLOCK rồi chạy lại toàn bộ kiểm tra.';
+        } else if (
+            lastAiUnavailable ||
+            lastAiOverall === 'NEED_REVIEW' ||
+            lastLiveAudit.warnings > 0 ||
+            lastHasLocalWarnings
+        ) {
+            cls = 'review';
+            title = '⚠ CHƯA PASS — CẦN XEM LẠI';
+            const reasons = [];
+
+            if (lastAiUnavailable) {
+                reasons.push('Gemini chưa hoàn tất vì model đang bận/tạm thời không khả dụng.');
+            } else if (lastAiOverall === 'NEED_REVIEW') {
+                reasons.push('Gemini yêu cầu review thủ công.');
+            }
+
+            if (lastLiveAudit.warnings > 0) {
+                reasons.push('Preview/Live còn ' + lastLiveAudit.warnings + ' mục cần xem lại.');
+            }
+
+            if (lastHasLocalWarnings) {
+                reasons.push('Local Scan còn cảnh báo.');
+            }
+
+            detail = reasons.join(' ') + ' Chỉ Publish sau khi các cảnh báo đã được xử lý hoặc xác nhận thủ công phù hợp.';
+        }
+
+        finalBox.className = 'as37-final ' + cls;
+        finalBox.style.display = '';
+        finalBox.innerHTML = `
+            <strong>${escapeHtml(title)}</strong>
+            <div>${escapeHtml(detail)}</div>
+        `;
+    }
+
+    async function retryGeminiOnly() {
+        const button = document.getElementById('as37RetryGemini');
+
+        if (!lastLocalAfterSave) {
+            alert('Chưa có dữ liệu bài để chạy lại Gemini. Hãy chạy kiểm tra toàn bộ một lần.');
+            return;
+        }
+
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Đang thử lại Gemini…';
+        }
+
+        try {
+            const ai = await runAiReview(lastLocalAfterSave);
+            renderAi(ai);
+
+            lastAiUnavailable = false;
+            lastAiOverall = String(ai.overall || 'NEED_REVIEW').toUpperCase();
+
+            if (
+                lastAiOverall === 'PASS' &&
+                lastLiveAudit &&
+                lastLiveAudit.blocks === 0 &&
+                lastLiveAudit.warnings === 0 &&
+                !lastHasLocalWarnings
+            ) {
+                finalResult = 'PASS';
+                setStatus('ĐẠT', 'pass');
+                manualReviewRequired = false;
+                manualWrap.classList.remove('open');
+            } else if (
+                lastAiOverall === 'HIGH_RISK' ||
+                (lastLiveAudit && lastLiveAudit.blocks > 0)
+            ) {
+                finalResult = 'HIGH_RISK';
+                setStatus('RỦI RO CAO', 'risk');
+                manualReviewRequired = true;
+                manualWrap.classList.add('open');
+            } else {
+                finalResult = 'NEED_REVIEW';
+                setStatus('CẦN XEM LẠI', 'review');
+                manualReviewRequired = true;
+                manualWrap.classList.add('open');
+            }
+
+            renderSummaryAndFinal();
+
+        } catch (error) {
+            lastAiUnavailable = true;
+            lastAiOverall = 'NEED_REVIEW';
+
+            aiSection.style.display = '';
+            aiResult.innerHTML = `
+                <div class="as31-card">
+                    <strong>Gemini vẫn tạm thời không khả dụng</strong>
+                    ${escapeHtml(error?.message || 'Hãy thử lại sau.')}
+                    <button type="button" id="as37RetryGemini" class="as37-retry">
+                        ↻ THỬ LẠI GEMINI
+                    </button>
+                </div>
+            `;
+
+            renderSummaryAndFinal();
+        }
+    }
+
+    aiResult.addEventListener('click', event => {
+        if (event.target?.id === 'as37RetryGemini') {
+            retryGeminiOnly();
+        }
+    });
+
     function resetUi() {
         progress.innerHTML = '';
         progress.classList.add('open');
@@ -547,6 +796,15 @@
         manualWrap.classList.remove('open');
         manualBox.checked = false;
         manualReviewRequired = false;
+        summaryBox.style.display = 'none';
+        summaryBox.innerHTML = '';
+        finalBox.style.display = 'none';
+        finalBox.innerHTML = '';
+        lastLocalAfterSave = null;
+        lastLiveAudit = null;
+        lastAiOverall = 'NEED_REVIEW';
+        lastAiUnavailable = false;
+        lastHasLocalWarnings = false;
     }
 
     function clickExistingLocalChecker() {
@@ -815,6 +1073,15 @@
                 'Khớp đúng bài hiện tại: ' + normalizedCanonical
             );
         }
+
+        const titleSlug =
+            titleSlugConsistency();
+
+        add(
+            titleSlug.level,
+            'Title ↔ Slug consistency',
+            titleSlug.detail
+        );
 
         const main =
             doc.querySelector('.article .body') ||
@@ -1144,6 +1411,15 @@
                 return false;
             }
 
+            const headingLike =
+                previous.matches?.(
+                    'h1, h2, h3, h4, h5, h6, label, .ad-label, .advertisement-label'
+                );
+
+            if (!headingLike) {
+                return false;
+            }
+
             const label =
                 (previous.textContent || '')
                     .replace(/\s+/g, ' ')
@@ -1196,29 +1472,20 @@
             const name =
                 describeAd(ad, index);
 
-            if (
-                interactiveRisk
-                || labelRisk
-            ) {
-                const reasons = [];
-
-                if (interactiveRisk) {
-                    reasons.push(
-                        'nằm trong/gần vùng tương tác'
-                    );
-                }
-
-                if (labelRisk) {
-                    reasons.push(
-                        'nhãn/tiêu đề gần quảng cáo có thể gây hiểu nhầm'
-                    );
-                }
-
+            if (labelRisk) {
                 add(
                     'warn',
                     'Ad slot — ' + name,
-                    reasons.join('; ') + '.'
+                    'Nhãn/tiêu đề gần quảng cáo có thể gây hiểu nhầm.'
                 );
+
+            } else if (interactiveRisk) {
+                add(
+                    'info',
+                    'Ad slot — ' + name,
+                    'Structural scan thấy vùng tương tác lân cận; Pixel Audit sẽ quyết định khoảng cách thực tế.'
+                );
+
             } else {
                 add(
                     'pass',
@@ -1251,27 +1518,25 @@
             );
 
         } else if (
-            accidentalClickRisks > 0
-            || misleadingLabelRisks > 0
+            misleadingLabelRisks > 0
         ) {
             add(
                 'warn',
                 'Bố trí quảng cáo cần xem lại',
-                ads
-                    + ' ad slot được phát hiện. '
-                    + (
-                        accidentalClickRisks > 0
-                            ? accidentalClickRisks
-                                + ' vị trí nằm trong/gần vùng tương tác; '
-                            : ''
-                    )
-                    + (
-                        misleadingLabelRisks > 0
-                            ? misleadingLabelRisks
-                                + ' vị trí có nhãn/tiêu đề dễ gây hiểu nhầm. '
-                            : ''
-                    )
-                    + 'Hãy tách quảng cáo khỏi nút điều hướng, video/play, download, menu và các vùng dễ bấm nhầm.'
+                misleadingLabelRisks
+                    + ' vị trí có nhãn/tiêu đề có thể gây hiểu nhầm. '
+                    + 'Hãy kiểm tra nhãn quảng cáo và vùng nội dung lân cận.'
+            );
+
+        } else if (
+            accidentalClickRisks > 0
+        ) {
+            add(
+                'info',
+                'Bố trí quảng cáo — chờ Pixel Audit xác nhận',
+                accidentalClickRisks
+                    + ' vị trí có vùng tương tác lân cận theo DOM. '
+                    + 'Không tính đây là cảnh báo cuối cho đến khi Pixel Audit đo khoảng cách render thực tế.'
             );
 
         } else if (
@@ -2179,6 +2444,14 @@
 
                 setStatus('RỦI RO CAO', 'risk');
                 finalResult = 'HIGH_RISK';
+
+                finalBox.className = 'as37-final block';
+                finalBox.style.display = '';
+                finalBox.innerHTML = `
+                    <strong>✕ KHÔNG PASS — BLOCK</strong>
+                    <div>Local Scan phát hiện lỗi chặn. Hãy sửa nội dung bắt buộc rồi chạy lại kiểm tra toàn bộ.</div>
+                `;
+
                 lastFingerprint = fingerprint();
 
                 return;
@@ -2272,6 +2545,7 @@
             }
 
             const localAfterSave = localScan();
+            lastLocalAfterSave = localAfterSave;
 
             addProgress(
                 'info',
@@ -2312,6 +2586,9 @@
                         <strong>Hệ thống vẫn tiếp tục</strong>
                         Preview/Live, Canonical, Ad Structure và Pixel Audit vẫn được chạy.
                         Kết quả cuối giữ NEED_REVIEW cho đến khi Gemini chạy thành công.
+                        <button type="button" id="as37RetryGemini" class="as37-retry">
+                            ↻ THỬ LẠI GEMINI
+                        </button>
                     </div>
                 `;
 
@@ -2321,6 +2598,9 @@
                     'Gemini tạm thời không khả dụng — tiếp tục các kiểm tra còn lại.'
                 );
             }
+
+            lastAiOverall = aiOverall;
+            lastAiUnavailable = aiUnavailable;
 
             addProgress(
                 'info',
@@ -2383,6 +2663,9 @@
                 ...pixelAudit.rows
             );
 
+            live.pixelBlocks = pixelAudit.blocks;
+            live.pixelWarnings = pixelAudit.warnings;
+
             live.blocks +=
                 pixelAudit.blocks;
 
@@ -2392,6 +2675,9 @@
             renderLive(live);
 
             const hasLocalWarnings = localAfterSave.warnings.length > 0;
+
+            lastLiveAudit = live;
+            lastHasLocalWarnings = hasLocalWarnings;
 
             if (
                 aiOverall === 'HIGH_RISK' ||
@@ -2421,6 +2707,8 @@
                 setStatus('ĐẠT', 'pass');
                 manualReviewRequired = false;
             }
+
+            renderSummaryAndFinal();
 
             lastFingerprint = fingerprint();
 
