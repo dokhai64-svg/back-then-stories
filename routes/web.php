@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\{
     MediaController as AdminMedia,
     GeminiArticleController as AdminGeminiArticle,
     AdSenseReviewController as AdminAdSenseReview,
+    AdSenseSiteAuditController as AdminAdSenseSiteAudit,
     ArticleImportController as AdminArticleImport,
     SystemHealthController as AdminSystemHealth
 };
@@ -39,7 +40,6 @@ Route::get(
 )
     ->whereNumber('chapterNumber')
     ->name('articles.chapter');
-
 
 Route::view(
     '/about',
@@ -148,16 +148,6 @@ Route::prefix('admin')
                     );
 
                 Route::post(
-                    'articles/ai-generate',
-                    [
-                        AdminGeminiArticle::class,
-                        'generate',
-                    ]
-                )->name(
-                    'articles.ai-generate'
-                );
-
-                Route::post(
                     'articles/adsense-review',
                     [
                         AdminAdSenseReview::class,
@@ -165,6 +155,36 @@ Route::prefix('admin')
                     ]
                 )->name(
                     'articles.adsense-review'
+                );
+
+                Route::get(
+                    'adsense-audit',
+                    [
+                        AdminAdSenseSiteAudit::class,
+                        'index',
+                    ]
+                )->name(
+                    'adsense-audit.index'
+                );
+
+                Route::post(
+                    'adsense-audit/run',
+                    [
+                        AdminAdSenseSiteAudit::class,
+                        'run',
+                    ]
+                )->name(
+                    'adsense-audit.run'
+                );
+
+                Route::post(
+                    'articles/ai-generate',
+                    [
+                        AdminGeminiArticle::class,
+                        'generate',
+                    ]
+                )->name(
+                    'articles.ai-generate'
                 );
 
                 Route::post(
