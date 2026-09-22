@@ -167,9 +167,7 @@ PROMPT;
                     'gemini-3.6-flash',
                     'gemini-3.5-flash',
                     'gemini-3.5-flash-lite',
-                    'gemini-2.5-flash',
-                    'gemini-2.5-flash-lite',
-                ])
+                                ])
             )
         );
 
@@ -261,6 +259,21 @@ PROMPT;
                             (string) $message
                         );
 
+                    $isUnavailableModel =
+                        $response->status() === 404
+                        || str_contains(
+                            $lowerMessage,
+                            'no longer available'
+                        )
+                        || str_contains(
+                            $lowerMessage,
+                            'not available to new users'
+                        )
+                        || str_contains(
+                            $lowerMessage,
+                            'not found'
+                        );
+
                     $isTransient =
                         in_array(
                             $response->status(),
@@ -318,6 +331,19 @@ PROMPT;
                      * returned immediately because another model will not
                      * fix them.
                      */
+                    if ($isUnavailableModel) {
+                        logger()->info(
+                            'Gemini AdSense model unavailable; skipping fallback',
+                            [
+                                'model' => $model,
+                                'status' => $response->status(),
+                                'message' => $message,
+                            ]
+                        );
+
+                        continue;
+                    }
+
                     if ($isTransient) {
                         $retryAfter =
                             trim(
@@ -519,7 +545,7 @@ PROMPT;
 
             return response()->json([
                 'message' =>
-                    'Tất cả model Gemini dùng để kiểm tra hiện đang bận hoặc tạm thời không khả dụng. Hãy chạy lại sau ít phút. Phản hồi cuối: '
+                    'Không model Gemini khả dụng nào hoàn tất được lượt kiểm tra hiện tại. Hãy chạy lại sau ít phút. Phản hồi cuối: '
                     . Str::limit(
                         $lastMessage,
                         220,
