@@ -41,6 +41,7 @@ Route::get(
     ->whereNumber('chapterNumber')
     ->name('articles.chapter');
 
+
 Route::view(
     '/about',
     'pages.about'
@@ -123,6 +124,26 @@ Route::prefix('admin')
                 );
 
                 Route::get(
+                    'adsense-audit',
+                    [
+                        AdminAdSenseSiteAudit::class,
+                        'index',
+                    ]
+                )->name(
+                    'adsense-audit.index'
+                );
+
+                Route::post(
+                    'adsense-audit/run',
+                    [
+                        AdminAdSenseSiteAudit::class,
+                        'run',
+                    ]
+                )->name(
+                    'adsense-audit.run'
+                );
+
+                Route::get(
                     'system-health',
                     [
                         AdminSystemHealth::class,
@@ -148,36 +169,6 @@ Route::prefix('admin')
                     );
 
                 Route::post(
-                    'articles/adsense-review',
-                    [
-                        AdminAdSenseReview::class,
-                        'review',
-                    ]
-                )->name(
-                    'articles.adsense-review'
-                );
-
-                Route::get(
-                    'adsense-audit',
-                    [
-                        AdminAdSenseSiteAudit::class,
-                        'index',
-                    ]
-                )->name(
-                    'adsense-audit.index'
-                );
-
-                Route::post(
-                    'adsense-audit/run',
-                    [
-                        AdminAdSenseSiteAudit::class,
-                        'run',
-                    ]
-                )->name(
-                    'adsense-audit.run'
-                );
-
-                Route::post(
                     'articles/ai-generate',
                     [
                         AdminGeminiArticle::class,
@@ -185,6 +176,16 @@ Route::prefix('admin')
                     ]
                 )->name(
                     'articles.ai-generate'
+                );
+
+                Route::post(
+                    'articles/adsense-review',
+                    [
+                        AdminAdSenseReview::class,
+                        'review',
+                    ]
+                )->name(
+                    'articles.adsense-review'
                 );
 
                 Route::post(
