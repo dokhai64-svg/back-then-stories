@@ -163,11 +163,10 @@ PROMPT;
                         'gemini-3.8-flash'
                     ),
                     'gemini-3.8-flash',
-                    'gemini-3.7-flash',
                     'gemini-3.6-flash',
                     'gemini-3.5-flash',
                     'gemini-3.5-flash-lite',
-                                ])
+                ])
             )
         );
 
@@ -184,7 +183,7 @@ PROMPT;
                  */
                 if (
                     (microtime(true) - $startedAt)
-                    > 78
+                    > 72
                 ) {
                     break;
                 }
@@ -197,7 +196,7 @@ PROMPT;
                         ->acceptJson()
                         ->asJson()
                         ->connectTimeout(4)
-                        ->timeout(18)
+                        ->timeout(16)
                         ->post(
                             'https://generativelanguage.googleapis.com/v1beta/models/'
                             . rawurlencode($model)
@@ -259,21 +258,6 @@ PROMPT;
                             (string) $message
                         );
 
-                    $isUnavailableModel =
-                        $response->status() === 404
-                        || str_contains(
-                            $lowerMessage,
-                            'no longer available'
-                        )
-                        || str_contains(
-                            $lowerMessage,
-                            'not available to new users'
-                        )
-                        || str_contains(
-                            $lowerMessage,
-                            'not found'
-                        );
-
                     $isTransient =
                         in_array(
                             $response->status(),
@@ -331,42 +315,7 @@ PROMPT;
                      * returned immediately because another model will not
                      * fix them.
                      */
-                    if ($isUnavailableModel) {
-                        logger()->info(
-                            'Gemini AdSense model unavailable; skipping fallback',
-                            [
-                                'model' => $model,
-                                'status' => $response->status(),
-                                'message' => $message,
-                            ]
-                        );
-
-                        continue;
-                    }
-
                     if ($isTransient) {
-                        $retryAfter =
-                            trim(
-                                (string) $response->header(
-                                    'Retry-After'
-                                )
-                            );
-
-                        $delayMs =
-                            ctype_digit($retryAfter)
-                                ? min(
-                                    2500,
-                                    max(
-                                        500,
-                                        ((int) $retryAfter) * 1000
-                                    )
-                                )
-                                : 700;
-
-                        usleep(
-                            $delayMs * 1000
-                        );
-
                         continue;
                     }
 
@@ -545,7 +494,7 @@ PROMPT;
 
             return response()->json([
                 'message' =>
-                    'Không model Gemini khả dụng nào hoàn tất được lượt kiểm tra hiện tại. Hãy chạy lại sau ít phút. Phản hồi cuối: '
+                    'Tất cả model Gemini dùng để kiểm tra hiện đang bận hoặc tạm thời không khả dụng. Hãy chạy lại sau ít phút. Phản hồi cuối: '
                     . Str::limit(
                         $lastMessage,
                         220,

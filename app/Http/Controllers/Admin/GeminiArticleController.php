@@ -13,6 +13,12 @@ class GeminiArticleController extends Controller
 {
     public function generate(Request $request)
     {
+        /*
+         * V4.3 REGRESSION FIX
+         * Restore the proven long-request behavior used by the working
+         * September 14 controller. Recent versions shortened each Gemini
+         * attempt too aggressively, causing rewrite/SEO failures.
+         */
         @ini_set('max_execution_time', '95');
         @set_time_limit(95);
 
@@ -108,19 +114,26 @@ class GeminiArticleController extends Controller
             . $articleBodyForPrompt;
 
         /*
-         * Fast fallback chain.
+         * V4.3: use the exact proven stable model family/config-first order.
+         * Do not add speculative/deprecated fallback IDs here.
          */
-        $models = [
-            'gemini-3.8-flash',
-            'gemini-3.7-flash',
-            'gemini-3.6-flash',
-            'gemini-3.5-flash',
-            'gemini-3.5-flash-lite',
-            'gemini-3.1-flash-lite',
-        ];
+        $models = array_values(
+            array_unique(
+                array_filter([
+                    config(
+                        'gemini.model',
+                        'gemini-3.8-flash'
+                    ),
+                    'gemini-3.8-flash',
+                    'gemini-3.6-flash',
+                    'gemini-3.5-flash',
+                    'gemini-3.5-flash-lite',
+                ])
+            )
+        );
 
         $startedAt = microtime(true);
-        $hardBudgetSeconds = 75.0;
+        $hardBudgetSeconds = 88.0;
 
         $lastMessage =
             'Gemini is temporarily unavailable. Please try again.';
@@ -141,8 +154,8 @@ class GeminiArticleController extends Controller
                     ])
                     ->acceptJson()
                     ->asJson()
-                    ->connectTimeout(4)
-                    ->timeout(16)
+                    ->connectTimeout(5)
+                    ->timeout(60)
                     ->post(
                         'https://generativelanguage.googleapis.com/v1beta/interactions',
                         [
@@ -253,38 +266,6 @@ class GeminiArticleController extends Controller
                     ], 502);
                 }
 
-                if (
-                    $this->isUnavailableModelFailure(
-                        $response->status(),
-                        $message
-                    )
-                ) {
-                    logger()->info(
-                        'Gemini model unavailable; skipping to next fallback',
-                        [
-                            'request_id' => $requestId,
-                            'model' => $model,
-                            'status' => $response->status(),
-                            'message' => $message,
-                        ]
-                    );
-
-                    continue;
-                }
-
-                if (
-                    $this->isTransientGeminiFailure(
-                        $response->status(),
-                        $message
-                    )
-                ) {
-                    usleep(
-                        $this->retryDelayMilliseconds(
-                            $response
-                        ) * 1000
-                    );
-                }
-
                 continue;
             }
 
@@ -382,7 +363,7 @@ class GeminiArticleController extends Controller
 
         return response()->json([
             'message' =>
-                'AI fallback could not complete the request after trying the supported Gemini 3.x Flash pool. '
+                'AI could not complete the request with the configured stable Gemini pool. '
                 . Str::limit($lastMessage, 240, ''),
             'request_id' => $requestId,
         ], 503);
@@ -458,20 +439,26 @@ class GeminiArticleController extends Controller
             . "\n\nSOURCE ARTICLE HTML:\n"
             . $sourceForPrompt;
 
-        $models = [
-            'gemini-3.8-flash',
-            'gemini-3.7-flash',
-            'gemini-3.6-flash',
-            'gemini-3.5-flash',
-            'gemini-3.5-flash-lite',
-            'gemini-3.1-flash-lite',
-        ];
+        $models = array_values(
+            array_unique(
+                array_filter([
+                    config(
+                        'gemini.model',
+                        'gemini-3.8-flash'
+                    ),
+                    'gemini-3.8-flash',
+                    'gemini-3.6-flash',
+                    'gemini-3.5-flash',
+                    'gemini-3.5-flash-lite',
+                ])
+            )
+        );
 
         $startedAt =
             microtime(true);
 
         $hardBudgetSeconds =
-            75.0;
+            88.0;
 
         $lastMessage =
             'Gemini is temporarily unavailable. Please try again.';
@@ -484,17 +471,17 @@ class GeminiArticleController extends Controller
                     - $startedAt
                 );
 
-            if ($remaining < 8) {
+            if ($remaining < 10) {
                 break;
             }
 
             $timeout =
                 (int) max(
-                    5,
+                    15,
                     min(
-                        20,
+                        60,
                         floor(
-                            $remaining - 2
+                            $remaining - 3
                         )
                     )
                 );
@@ -507,7 +494,7 @@ class GeminiArticleController extends Controller
                     ])
                         ->acceptJson()
                         ->asJson()
-                        ->connectTimeout(4)
+                        ->connectTimeout(5)
                         ->timeout($timeout)
                         ->post(
                             'https://generativelanguage.googleapis.com/v1beta/interactions',
@@ -602,38 +589,6 @@ class GeminiArticleController extends Controller
                             ?: 'Gemini chapter analysis failed.'
                         )
                     );
-
-                if (
-                    $this->isUnavailableModelFailure(
-                        $response->status(),
-                        $lastMessage
-                    )
-                ) {
-                    logger()->info(
-                        'Gemini chapter model unavailable; skipping fallback',
-                        [
-                            'request_id' => $requestId,
-                            'model' => $model,
-                            'status' => $response->status(),
-                            'message' => $lastMessage,
-                        ]
-                    );
-
-                    continue;
-                }
-
-                if (
-                    $this->isTransientGeminiFailure(
-                        $response->status(),
-                        $lastMessage
-                    )
-                ) {
-                    usleep(
-                        $this->retryDelayMilliseconds(
-                            $response
-                        ) * 1000
-                    );
-                }
 
                 continue;
             }
@@ -750,7 +705,7 @@ class GeminiArticleController extends Controller
 
         return response()->json([
             'message' =>
-                'AI could not finish chapter analysis after trying the supported Gemini 3.x Flash pool. '
+                'AI could not finish chapter analysis with the configured stable Gemini pool. '
                 . Str::limit(
                     $lastMessage,
                     220,
@@ -865,21 +820,28 @@ PROMPT;
             . $protectedHtml;
 
         /*
-         * Keep this inside Railway/PHP's 30-second request limit.
-         * Whole-article rewriting needs more output time than SEO,
-         * so use only fast models and a strict total budget.
+         * V4.3 REGRESSION FIX
+         * Recent versions forced whole-article rewrite through Lite models
+         * with ~14 second attempt limits. Restore the proven stable Flash
+         * family and allow enough time for long structured output.
          */
-        $models = [
-            'gemini-3.8-flash',
-            'gemini-3.7-flash',
-            'gemini-3.6-flash',
-            'gemini-3.5-flash',
-            'gemini-3.5-flash-lite',
-            'gemini-3.1-flash-lite',
-        ];
+        $models = array_values(
+            array_unique(
+                array_filter([
+                    config(
+                        'gemini.model',
+                        'gemini-3.8-flash'
+                    ),
+                    'gemini-3.8-flash',
+                    'gemini-3.6-flash',
+                    'gemini-3.5-flash',
+                    'gemini-3.5-flash-lite',
+                ])
+            )
+        );
 
         $startedAt = microtime(true);
-        $hardBudgetSeconds = 75.0;
+        $hardBudgetSeconds = 88.0;
 
         $lastMessage =
             'Gemini is temporarily unavailable. Please try again.';
@@ -891,14 +853,19 @@ PROMPT;
             $remaining =
                 $hardBudgetSeconds - $elapsed;
 
-            if ($remaining < 8) {
+            if ($remaining < 10) {
                 break;
             }
 
             $timeout =
                 (int) max(
-                    5,
-                    min(24, floor($remaining - 3))
+                    15,
+                    min(
+                        60,
+                        floor(
+                            $remaining - 3
+                        )
+                    )
                 );
 
             try {
@@ -907,7 +874,7 @@ PROMPT;
                     ])
                     ->acceptJson()
                     ->asJson()
-                    ->connectTimeout(4)
+                    ->connectTimeout(5)
                     ->timeout($timeout)
                     ->post(
                         'https://generativelanguage.googleapis.com/v1beta/interactions',
@@ -1020,38 +987,6 @@ PROMPT;
                     ], 502);
                 }
 
-                if (
-                    $this->isUnavailableModelFailure(
-                        $response->status(),
-                        $message
-                    )
-                ) {
-                    logger()->info(
-                        'Gemini model unavailable; skipping to next fallback',
-                        [
-                            'request_id' => $requestId,
-                            'model' => $model,
-                            'status' => $response->status(),
-                            'message' => $message,
-                        ]
-                    );
-
-                    continue;
-                }
-
-                if (
-                    $this->isTransientGeminiFailure(
-                        $response->status(),
-                        $message
-                    )
-                ) {
-                    usleep(
-                        $this->retryDelayMilliseconds(
-                            $response
-                        ) * 1000
-                    );
-                }
-
                 continue;
             }
 
@@ -1139,7 +1074,7 @@ PROMPT;
 
         return response()->json([
             'message' =>
-                'AI could not finish the rewrite after trying the supported Gemini 3.x Flash pool. '
+                'AI could not finish the rewrite with the configured stable Gemini pool. '
                 . Str::limit(
                     $lastMessage,
                     220,
@@ -1381,64 +1316,6 @@ Before returning:
 4. Every MEDIA token must remain unchanged.
 5. Return exactly one JSON field: rewritten_body.
 PROMPT;
-    }
-
-    private function isUnavailableModelFailure(
-        int $status,
-        string $message
-    ): bool {
-        $lower = mb_strtolower($message);
-
-        return $status === 404
-            || str_contains($lower, 'no longer available')
-            || str_contains($lower, 'not found')
-            || str_contains($lower, 'not supported for this user')
-            || str_contains($lower, 'not available to new users');
-    }
-
-    private function isTransientGeminiFailure(
-        int $status,
-        string $message
-    ): bool {
-        $lower = mb_strtolower($message);
-
-        return in_array(
-            $status,
-            [408, 409, 429, 500, 502, 503, 504],
-            true
-        )
-            || str_contains($lower, 'high demand')
-            || str_contains($lower, 'temporarily')
-            || str_contains($lower, 'overloaded')
-            || str_contains($lower, 'resource exhausted')
-            || str_contains($lower, 'resource_exhausted')
-            || str_contains($lower, 'unavailable')
-            || str_contains($lower, 'deadline exceeded')
-            || str_contains($lower, 'timeout');
-    }
-
-    private function retryDelayMilliseconds(
-        mixed $response
-    ): int {
-        try {
-            $header = trim(
-                (string) $response->header('Retry-After')
-            );
-
-            if ($header !== '' && ctype_digit($header)) {
-                return min(
-                    2500,
-                    max(
-                        500,
-                        ((int) $header) * 1000
-                    )
-                );
-            }
-        } catch (Throwable $e) {
-            // Fall through to a short bounded delay.
-        }
-
-        return 700;
     }
 
     private function extractOutputText(array $payload): string
