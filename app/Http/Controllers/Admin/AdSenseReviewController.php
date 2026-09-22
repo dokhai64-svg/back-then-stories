@@ -163,6 +163,7 @@ PROMPT;
                         'gemini-3.8-flash'
                     ),
                     'gemini-3.8-flash',
+                    'gemini-3.7-flash',
                     'gemini-3.6-flash',
                     'gemini-3.5-flash',
                     'gemini-3.5-flash-lite',
@@ -183,7 +184,7 @@ PROMPT;
                  */
                 if (
                     (microtime(true) - $startedAt)
-                    > 72
+                    > 76
                 ) {
                     break;
                 }
@@ -196,7 +197,7 @@ PROMPT;
                         ->acceptJson()
                         ->asJson()
                         ->connectTimeout(4)
-                        ->timeout(16)
+                        ->timeout(18)
                         ->post(
                             'https://generativelanguage.googleapis.com/v1beta/models/'
                             . rawurlencode($model)
@@ -231,7 +232,7 @@ PROMPT;
                         . ' timed out.';
 
                     logger()->warning(
-                        'Gemini AdSense V3.3 model timeout',
+                        'Gemini AdSense V4 model timeout',
                         [
                             'model' =>
                                 $model,
@@ -296,7 +297,7 @@ PROMPT;
                         );
 
                     logger()->warning(
-                        'Gemini AdSense V3.3 model failed',
+                        'Gemini AdSense V4 model failed',
                         [
                             'model' =>
                                 $model,
@@ -364,7 +365,7 @@ PROMPT;
                         'Gemini không trả về nội dung đánh giá chính sách có thể sử dụng.';
 
                     logger()->warning(
-                        'Gemini AdSense V3.3 returned no text',
+                        'Gemini AdSense V4 returned no text',
                         [
                             'model' =>
                                 $model,
@@ -394,7 +395,7 @@ PROMPT;
                         'Gemini trả về phản hồi đánh giá không hợp lệ.';
 
                     logger()->warning(
-                        'Gemini AdSense V3.3 JSON parse failed',
+                        'Gemini AdSense V4 JSON parse failed',
                         [
                             'model' =>
                                 $model,
@@ -506,7 +507,7 @@ PROMPT;
             report($e);
 
             logger()->error(
-                'Gemini AdSense V3.3 server error',
+                'Gemini AdSense V4 server error',
                 [
                     'exception' =>
                         get_class($e),
@@ -545,7 +546,7 @@ PROMPT;
 
         return array_values(array_filter(array_map(
             fn ($item) => $this->cleanLine($item),
-            array_slice($value, 0, 20)
+            array_slice($value, 0, 5)
         )));
     }
 
