@@ -177,20 +177,6 @@
 .audit-manual li{
     margin:7px 0;
 }
-.audit-policy-links{
-    display:flex;
-    flex-wrap:wrap;
-    gap:8px;
-}
-.audit-policy-links a{
-    display:inline-flex;
-    padding:7px 9px;
-    border:1px solid #dbe3ec;
-    border-radius:8px;
-    color:#2563eb;
-    text-decoration:none;
-    font-size:11px;
-}
 @media(max-width:800px){
     .audit-summary{
         grid-template-columns:repeat(2,minmax(0,1fr));
@@ -456,22 +442,6 @@
                     <li>{{ $item }}</li>
                 @endforeach
             </ul>
-        </section>
-
-        <section class="audit-card">
-            <h2>Google Policy References</h2>
-
-            <div class="audit-policy-links">
-                @foreach($report['policy_links'] as $link)
-                    <a
-                        href="{{ $link['url'] }}"
-                        target="_blank"
-                        rel="noopener"
-                    >
-                        {{ $link['label'] }} ↗
-                    </a>
-                @endforeach
-            </div>
         </section>
 
     @endif
