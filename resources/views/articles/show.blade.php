@@ -6,7 +6,7 @@
 @section('og_type', 'article')
 
 @if($article->featured_image)
-    @section('og_image', asset('storage/' . $article->featured_image))
+    @section('og_image', url('/media/' . ltrim($article->featured_image, '/')))
 @endif
 
 @push('head')
@@ -27,7 +27,7 @@
         'name' => $currentSite?->name ?? 'Back Then Stories',
     ],
     'image' => $article->featured_image
-        ? [asset('storage/' . $article->featured_image)]
+        ? [url('/media/' . ltrim($article->featured_image, '/'))]
         : [],
 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}
 </script>
@@ -236,8 +236,10 @@
 
     @if($article->featured_image)
         <img
-            src="{{ asset('storage/' . $article->featured_image) }}"
+            src="{{ url('/media/' . ltrim($article->featured_image, '/')) }}"
             alt="{{ $article->title }}"
+            decoding="async"
+            fetchpriority="high"
             style="width:100%;margin:24px 0;border-radius:10px"
         >
     @endif
@@ -270,6 +272,95 @@
                 $article->body
                 ?? ''
             );
+
+
+        /*
+         * Public article images:
+         * - rewrite local /storage URLs to the immutable /media route,
+         * - lazy-load body images,
+         * - decode them asynchronously.
+         *
+         * Featured image above stays eager/high-priority for LCP.
+         */
+        $bodyHtml = preg_replace_callback(
+            '/<img\b[^>]*>/i',
+            static function (array $match): string {
+                $tag = (string) ($match[0] ?? '');
+
+                $tag = preg_replace_callback(
+                    '/\bsrc=(["\'])(.*?)\1/i',
+                    static function (array $srcMatch): string {
+                        $quote = $srcMatch[1];
+                        $src = html_entity_decode(
+                            (string) $srcMatch[2],
+                            ENT_QUOTES | ENT_HTML5,
+                            'UTF-8'
+                        );
+
+                        $appUrl = rtrim(
+                            (string) config('app.url'),
+                            '/'
+                        );
+
+                        $path = null;
+
+                        if (str_starts_with($src, '/storage/')) {
+                            $path = substr($src, 9);
+                        } elseif (
+                            $appUrl !== ''
+                            && str_starts_with(
+                                $src,
+                                $appUrl . '/storage/'
+                            )
+                        ) {
+                            $path = substr(
+                                $src,
+                                strlen($appUrl . '/storage/')
+                            );
+                        }
+
+                        if (
+                            $path === null
+                            || $path === ''
+                            || !preg_match('#^(media|articles)/#', $path)
+                        ) {
+                            return $srcMatch[0];
+                        }
+
+                        $newSrc = url(
+                            '/media/' . ltrim($path, '/')
+                        );
+
+                        return 'src=' . $quote
+                            . e($newSrc)
+                            . $quote;
+                    },
+                    $tag
+                ) ?? $tag;
+
+                $attributes = '';
+
+                if (!preg_match('/\bloading\s*=/i', $tag)) {
+                    $attributes .= ' loading="lazy"';
+                }
+
+                if (!preg_match('/\bdecoding\s*=/i', $tag)) {
+                    $attributes .= ' decoding="async"';
+                }
+
+                if ($attributes !== '') {
+                    $tag = preg_replace(
+                        '/\s*\/?>$/',
+                        $attributes . '>',
+                        $tag,
+                        1
+                    ) ?? $tag;
+                }
+
+                return $tag;
+            },
+            $bodyHtml
+        ) ?? $bodyHtml;
 
         $plainBody =
             preg_replace(
@@ -625,9 +716,10 @@
                             @if($r->featured_image)
                                 <img
                                     class="article-recommendation-card__image"
-                                    src="{{ asset('storage/' . $r->featured_image) }}"
+                                    src="{{ url('/media/' . ltrim($r->featured_image, '/')) }}"
                                     alt="{{ $r->title }}"
                                     loading="lazy"
+                                    decoding="async"
                                 >
                             @else
                                 <div class="article-recommendation-card__placeholder">
