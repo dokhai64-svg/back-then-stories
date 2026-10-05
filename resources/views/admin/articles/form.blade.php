@@ -1347,11 +1347,46 @@
 
                     <label>Publish at</label>
 
-                    <input
-                        type="datetime-local"
-                        name="published_at"
-                        value="{{ old('published_at', optional($article->published_at)->format('Y-m-d\TH:i')) }}"
+                    <div
+                        style="
+                            display:flex;
+                            gap:8px;
+                            align-items:center;
+                            flex-wrap:wrap;
+                        "
                     >
+                        <input
+                            id="publishedAtField"
+                            type="datetime-local"
+                            name="published_at"
+                            value="{{ old('published_at', optional($article->published_at)->format('Y-m-d\TH:i')) }}"
+                            style="flex:1 1 210px;min-width:190px"
+                        >
+
+                        @if($article->exists)
+                            <button
+                                type="button"
+                                id="randomPublishedAtBtn"
+                                class="btn secondary"
+                                style="width:auto;white-space:nowrap"
+                                title="Choose a random date in the last 90 days, between 06:00 and 22:59"
+                            >
+                                🎲 Random date
+                            </button>
+                        @endif
+                    </div>
+
+                    <div
+                        class="muted"
+                        style="
+                            margin-top:6px;
+                            font-size:11px;
+                            line-height:1.45;
+                        "
+                    >
+                        New published articles with no date are randomized automatically.
+                        Existing articles change only when you choose a new date or click Random date.
+                    </div>
 
                 </div>
 
@@ -1651,6 +1686,90 @@
 const ed = document.getElementById('editor');
 const body = document.getElementById('body');
 const articleForm = document.getElementById('articleForm');
+
+/* Random published date for existing articles */
+const publishedAtField =
+    document.getElementById('publishedAtField');
+
+const randomPublishedAtBtn =
+    document.getElementById('randomPublishedAtBtn');
+
+function padDatePart(value) {
+    return String(value).padStart(2, '0');
+}
+
+function randomPublishedDateValue() {
+    const now = new Date();
+
+    const daysAgo =
+        Math.floor(Math.random() * 90);
+
+    const randomDate =
+        new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate() - daysAgo,
+            0,
+            0,
+            0,
+            0
+        );
+
+    const hour =
+        6 + Math.floor(Math.random() * 17);
+
+    const minute =
+        Math.floor(Math.random() * 60);
+
+    randomDate.setHours(
+        hour,
+        minute,
+        0,
+        0
+    );
+
+    return (
+        randomDate.getFullYear()
+        + '-'
+        + padDatePart(
+            randomDate.getMonth() + 1
+        )
+        + '-'
+        + padDatePart(
+            randomDate.getDate()
+        )
+        + 'T'
+        + padDatePart(
+            randomDate.getHours()
+        )
+        + ':'
+        + padDatePart(
+            randomDate.getMinutes()
+        )
+    );
+}
+
+if (
+    publishedAtField
+    && randomPublishedAtBtn
+) {
+    randomPublishedAtBtn.addEventListener(
+        'click',
+        function () {
+            publishedAtField.value =
+                randomPublishedDateValue();
+
+            publishedAtField.dispatchEvent(
+                new Event(
+                    'change',
+                    { bubbles: true }
+                )
+            );
+
+            publishedAtField.focus();
+        }
+    );
+}
 
 let savedRange = null;
 
