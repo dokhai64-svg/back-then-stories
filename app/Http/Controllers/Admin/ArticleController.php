@@ -1777,14 +1777,25 @@ class ArticleController extends Controller
         $data['featured'] =
             !empty($data['featured']);
 
+        /*
+         * Random published date:
+         * - Applies only when published_at is empty.
+         * - Random date is within the last 90 days.
+         * - Random time is between 06:00 and 22:59.
+         * - Existing / manually selected published_at is preserved.
+         */
         if (
             $data['status'] === 'published' &&
             empty($data['published_at'])
         ) {
             $data['published_at'] =
-                now();
+                $this->randomPublishedAt();
         }
 
+        /*
+         * Scheduled posts must stay in the future.
+         * If no schedule time is supplied, default to one hour from now.
+         */
         if (
             $data['status'] === 'scheduled' &&
             empty($data['published_at'])
@@ -1803,5 +1814,17 @@ class ArticleController extends Controller
             $data['published_at'] =
                 $data['published_at'] ?? null;
         }
+    }
+
+    private function randomPublishedAt()
+    {
+        $daysAgo = random_int(0, 89);
+        $hour = random_int(6, 22);
+        $minute = random_int(0, 59);
+        $second = random_int(0, 59);
+
+        return now()
+            ->subDays($daysAgo)
+            ->setTime($hour, $minute, $second);
     }
 }
