@@ -3,7 +3,8 @@
 use App\Http\Controllers\{
     HomeController,
     ArticleController,
-    SystemController
+    SystemController,
+    PublicMediaController
 };
 
 use App\Http\Controllers\Admin\{
@@ -28,6 +29,13 @@ Route::get(
     '/',
     [HomeController::class, 'index']
 )->name('home');
+
+Route::get(
+    '/media/{path}',
+    [PublicMediaController::class, 'show']
+)
+    ->where('path', '.*')
+    ->name('media.public');
 
 Route::get(
     '/story/{slug}',
