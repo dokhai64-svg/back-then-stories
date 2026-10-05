@@ -19,6 +19,7 @@ class OptimizeExistingMedia extends Command
         {--quality=82 : WebP quality 1-100}
         {--limit=0 : Maximum Media records to process; 0 means all}
         {--include-featured : Also optimize Article featured_image files}
+        {--featured-only : Skip Media Library and optimize only Article featured images}
         {--delete-originals : Delete originals only after successful DB update (NOT recommended on first run)}';
 
     protected $description = 'Safely convert existing local images to resized WebP while preserving references and rollback data.';
@@ -40,9 +41,10 @@ class OptimizeExistingMedia extends Command
         $quality = max(50, min(95, (int) $this->option('quality')));
         $limit = max(0, (int) $this->option('limit'));
         $deleteOriginals = (bool) $this->option('delete-originals');
+        $featuredOnly = (bool) $this->option('featured-only');
 
         $this->newLine();
-        $this->info('Back Then Stories - Existing Media Optimizer');
+        $this->info('Back Then Stories - Existing Media Optimizer V2');
         $this->line('Mode: ' . ($apply ? 'APPLY' : 'DRY RUN'));
         $this->line("Max width: {$maxWidth}px | WebP quality: {$quality}");
         $this->line('Original files: ' . ($deleteOriginals ? 'DELETE after successful migration' : 'KEEP for rollback'));
@@ -54,21 +56,26 @@ class OptimizeExistingMedia extends Command
             $this->warn('WARNING: --delete-originals is enabled. First run is safer WITHOUT this option.');
         }
 
-        $mediaQuery = Media::query()->orderBy('id');
-        if ($limit > 0) {
-            $mediaQuery->limit($limit);
+        if (!$featuredOnly) {
+            $mediaQuery = Media::query()->orderBy('id');
+            if ($limit > 0) {
+                $mediaQuery->limit($limit);
+            }
+
+            $media = $mediaQuery->get();
+            $this->info('Media Library records found: ' . $media->count());
+
+            foreach ($media as $medium) {
+                $this->processMediaRecord($medium, $apply, $maxWidth, $quality, $deleteOriginals);
+            }
+        } else {
+            $this->info('Media Library skipped because --featured-only is enabled.');
         }
 
-        $media = $mediaQuery->get();
-        $this->info('Media Library records found: ' . $media->count());
-
-        foreach ($media as $medium) {
-            $this->processMediaRecord($medium, $apply, $maxWidth, $quality, $deleteOriginals);
-        }
-
-        if ((bool) $this->option('include-featured')) {
+        if ((bool) $this->option('include-featured') || $featuredOnly) {
             $this->newLine();
             $this->info('Scanning Article featured images...');
+
             Article::query()
                 ->whereNotNull('featured_image')
                 ->where('featured_image', '<>', '')
@@ -120,6 +127,12 @@ class OptimizeExistingMedia extends Command
         if ($oldPath === '' || !Storage::disk($disk)->exists($oldPath)) {
             $this->warn("Media #{$medium->id}: missing file {$oldPath}");
             $this->failed++;
+            return;
+        }
+
+        if (strtolower(pathinfo($oldPath, PATHINFO_EXTENSION)) === 'webp') {
+            $this->line("SKIP Media #{$medium->id}: already WebP");
+            $this->skipped++;
             return;
         }
 
@@ -209,6 +222,12 @@ class OptimizeExistingMedia extends Command
         if ($oldPath === '' || !Storage::disk($disk)->exists($oldPath)) {
             $this->warn("Article #{$article->id}: featured image missing: {$oldPath}");
             $this->failed++;
+            return;
+        }
+
+        if (strtolower(pathinfo($oldPath, PATHINFO_EXTENSION)) === 'webp') {
+            $this->line("SKIP Article #{$article->id}: featured image already WebP");
+            $this->skipped++;
             return;
         }
 
@@ -327,10 +346,7 @@ class OptimizeExistingMedia extends Command
             if (!imagecopyresampled(
                 $canvas,
                 $image,
-                0,
-                0,
-                0,
-                0,
+                0, 0, 0, 0,
                 $targetWidth,
                 $targetHeight,
                 $width,
@@ -352,19 +368,6 @@ class OptimizeExistingMedia extends Command
                 return ['status' => 'fail', 'reason' => 'WebP encoding failed'];
             }
 
-            $oldSize = strlen($contents);
-            $newSize = strlen($webp);
-            $oldExt = strtolower(pathinfo($oldPath, PATHINFO_EXTENSION));
-
-            // Already-WebP files that are small and do not need resizing are left alone.
-            if (
-                $oldExt === 'webp'
-                && $width <= $maxWidth
-                && $newSize >= (int) round($oldSize * 0.96)
-            ) {
-                return ['status' => 'skip', 'reason' => 'already optimized WebP'];
-            }
-
             $targetFolder = trim($targetFolder, '/');
             $newPath = ($targetFolder !== '' ? $targetFolder . '/' : '')
                 . Str::uuid()
@@ -377,7 +380,7 @@ class OptimizeExistingMedia extends Command
             return [
                 'status' => 'ok',
                 'path' => $newPath,
-                'size' => $newSize,
+                'size' => strlen($webp),
                 'width' => $targetWidth,
                 'height' => $targetHeight,
             ];
