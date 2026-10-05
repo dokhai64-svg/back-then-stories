@@ -255,7 +255,8 @@ class ArticleController extends Controller
         } elseif ($featuredMediaId) {
             $copied =
                 $this->copyMediaAsFeaturedImage(
-                    $featuredMediaId
+                    $featuredMediaId,
+                    $images
                 );
 
             if ($copied) {
@@ -266,7 +267,8 @@ class ArticleController extends Controller
         } elseif ($importedImageUrl) {
             $downloaded =
                 $this->downloadRemoteImage(
-                    $importedImageUrl
+                    $importedImageUrl,
+                    $images
                 );
 
             if ($downloaded) {
@@ -423,7 +425,8 @@ class ArticleController extends Controller
         } elseif ($featuredMediaId) {
             $copied =
                 $this->copyMediaAsFeaturedImage(
-                    $featuredMediaId
+                    $featuredMediaId,
+                    $images
                 );
 
             if ($copied) {
@@ -441,7 +444,8 @@ class ArticleController extends Controller
         } elseif ($importedImageUrl) {
             $downloaded =
                 $this->downloadRemoteImage(
-                    $importedImageUrl
+                    $importedImageUrl,
+                    $images
                 );
 
             if ($downloaded) {
@@ -741,7 +745,8 @@ class ArticleController extends Controller
     }
 
     public function cloneArticle(
-        Article $article
+        Article $article,
+        ImageUploadService $images
     ) {
         $article->load([
             'chapters',
@@ -749,7 +754,7 @@ class ArticleController extends Controller
 
         $clone =
             DB::transaction(
-                function () use ($article) {
+                function () use ($article, $images) {
                     $copy =
                         $article->replicate([
                             'slug',
@@ -791,7 +796,8 @@ class ArticleController extends Controller
 
                     $copy->featured_image =
                         $this->copyFeaturedImageForClone(
-                            $article
+                            $article,
+                            $images
                         );
 
                     $copy->save();
@@ -1062,7 +1068,8 @@ class ArticleController extends Controller
     }
 
     private function copyFeaturedImageForClone(
-        Article $article
+        Article $article,
+        ImageUploadService $images
     ): ?string {
         $source =
             trim(
@@ -1109,12 +1116,6 @@ class ArticleController extends Controller
                 $extension = 'webp';
             }
 
-            $target =
-                'articles/'
-                . Str::uuid()
-                . '.'
-                . $extension;
-
             $contents =
                 Storage::disk('public')
                     ->get($source);
@@ -1127,13 +1128,13 @@ class ArticleController extends Controller
                 return null;
             }
 
-            Storage::disk('public')
-                ->put(
-                    $target,
-                    $contents
-                );
+            $upload = $images->storeBytes(
+                $contents,
+                'articles',
+                basename($source)
+            );
 
-            return $target;
+            return $upload['path'] ?? null;
 
         } catch (\Throwable $e) {
             logger()->warning(
@@ -1531,7 +1532,8 @@ class ArticleController extends Controller
     }
 
     private function copyMediaAsFeaturedImage(
-        int $mediaId
+        int $mediaId,
+        ImageUploadService $images
     ): ?string {
         try {
             $medium =
@@ -1596,19 +1598,14 @@ class ArticleController extends Controller
                 return null;
             }
 
-            $path =
-                'articles/'
-                . Str::uuid()
-                . '.'
-                . $extension;
+            $upload = $images->storeBytes(
+                $contents,
+                'articles',
+                $medium->filename ?: basename($medium->path),
+                $medium->mime_type ?: null
+            );
 
-            Storage::disk('public')
-                ->put(
-                    $path,
-                    $contents
-                );
-
-            return $path;
+            return $upload['path'] ?? null;
 
         } catch (\Throwable $e) {
             logger()->warning(
@@ -1626,7 +1623,8 @@ class ArticleController extends Controller
     }
 
     private function downloadRemoteImage(
-        string $url
+        string $url,
+        ImageUploadService $images
     ): ?string {
         try {
             $parts =
@@ -1744,19 +1742,21 @@ class ArticleController extends Controller
                 return null;
             }
 
-            $path =
-                'articles/imported/'
-                . Str::uuid()
-                . '.'
-                . $extensions[$contentType];
+            $originalName = basename(
+                (string) parse_url(
+                    $url,
+                    PHP_URL_PATH
+                )
+            ) ?: ('remote-image.' . $extensions[$contentType]);
 
-            Storage::disk('public')
-                ->put(
-                    $path,
-                    $contents
-                );
+            $upload = $images->storeBytes(
+                $contents,
+                'articles/imported',
+                $originalName,
+                $contentType
+            );
 
-            return $path;
+            return $upload['path'] ?? null;
 
         } catch (\Throwable $e) {
             logger()->warning(
