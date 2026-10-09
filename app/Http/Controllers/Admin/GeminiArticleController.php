@@ -1143,23 +1143,48 @@ PROMPT;
             ];
         }
 
-        $ratio =
-            $rewrittenCount / max(1, $sourceCount);
-
-        if ($ratio < 0.70) {
+        /*
+         * Do not reject a useful editorial rewrite just because it is
+         * shorter than the source. Source pages may contain repetition,
+         * navigation text, captions, or padded prose. Use absolute
+         * substance thresholds instead of a strict source-length ratio.
+         */
+        if ($rewrittenCount < 250) {
             return [
                 'ok' => false,
                 'reason' =>
-                    'rewritten article became too short',
+                    'rewritten article is too short to be useful',
+            ];
+        }
+
+        if (
+            $sourceCount >= 450
+            && $sourceCount < 800
+            && $rewrittenCount < 400
+        ) {
+            return [
+                'ok' => false,
+                'reason' =>
+                    'rewritten article needs more editorial substance',
+            ];
+        }
+
+        if (
+            $sourceCount >= 800
+            && $rewrittenCount < 500
+        ) {
+            return [
+                'ok' => false,
+                'reason' =>
+                    'rewritten article needs more editorial substance',
             ];
         }
 
         /*
-         * Editorial rewrites may be longer than a thin source when the
-         * same supported facts can be reorganized and explained with
-         * stronger context. Cap expansion to prevent filler.
+         * Keep an upper safety cap so the model cannot create a padded
+         * article merely to satisfy length targets.
          */
-        if ($ratio > 2.60 || $rewrittenCount > 1500) {
+        if ($rewrittenCount > 1500) {
             return [
                 'ok' => false,
                 'reason' =>
