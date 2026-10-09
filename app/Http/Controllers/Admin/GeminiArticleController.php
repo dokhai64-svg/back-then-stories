@@ -788,10 +788,16 @@ PROMPT;
             ''
         );
 
+        $sourceWordCount = count(
+            $this->words($sourceHtml)
+        );
+
         $prompt =
             $this->rewritePrompt()
             . "\n\nARTICLE TITLE:\n"
             . trim($title)
+            . "\n\nSOURCE WORD COUNT:\n"
+            . $sourceWordCount
             . "\n\nSOURCE BODY HTML:\n"
             . $protectedHtml;
 
@@ -843,7 +849,7 @@ PROMPT;
                             'input' => $prompt,
                             'generation_config' => [
                                 'thinking_level' => 'low',
-                                'max_output_tokens' => 5000,
+                                'max_output_tokens' => 6500,
                             ],
                             'response_format' => [
                                 'type' => 'text',
@@ -1140,7 +1146,7 @@ PROMPT;
         $ratio =
             $rewrittenCount / max(1, $sourceCount);
 
-        if ($ratio < 0.60) {
+        if ($ratio < 0.70) {
             return [
                 'ok' => false,
                 'reason' =>
@@ -1148,11 +1154,16 @@ PROMPT;
             ];
         }
 
-        if ($ratio > 1.55) {
+        /*
+         * Editorial rewrites may be longer than a thin source when the
+         * same supported facts can be reorganized and explained with
+         * stronger context. Cap expansion to prevent filler.
+         */
+        if ($ratio > 2.60 || $rewrittenCount > 1500) {
             return [
                 'ok' => false,
                 'reason' =>
-                    'rewritten article became too long',
+                    'rewritten article became excessively long',
             ];
         }
 
@@ -1226,55 +1237,107 @@ PROMPT;
     private function rewritePrompt(): string
     {
         return <<<'PROMPT'
-You are a senior American-English editor rewriting a complete article for independent publication.
+You are the senior American-English editorial writer for Back Then Stories, an independent publication focused on classic music, singers, entertainment history, cultural memory, and meaningful stories from past generations.
 
-The source article may have been copied from another website. Treat it ONLY as factual reference material. Your job is to produce a genuinely independently written article, not a synonym-swapped version.
+The supplied article may come from another website. Treat it ONLY as source material containing facts and events. Do not perform a light paraphrase. Your task is to create a genuinely independent editorial article with its own structure, pacing, emphasis, and narrative logic.
 
-FACTUAL SAFETY
-- Preserve only facts supported by the supplied source.
-- Preserve proper names, song titles, album titles, film titles, dates, chart positions, places, and other factual identifiers when they are supported.
-- Do NOT invent facts, quotes, motives, relationships, dates, chart positions, awards, sales figures, or historical claims.
+CORE EDITORIAL GOAL
+Turn source material into a useful, substantial reader experience rather than a synonym-swapped rewrite.
+The finished article should feel like it was independently researched and edited from the facts available in the source.
+
+FACTUAL SAFETY — NON-NEGOTIABLE
+- Use only facts supported by the supplied source.
+- Preserve proper names, song titles, album titles, film titles, dates, chart positions, places, and other factual identifiers when supported.
+- Never invent quotes, motives, relationships, dates, chart positions, awards, sales figures, recording details, causes, or historical claims.
 - If the source is uncertain, keep the rewritten wording equally cautious.
-- Do not turn "recorded" into "released," or "released" into "recorded."
+- Do not turn "recorded" into "released," "released" into "recorded," or otherwise change factual meaning.
+- Do not claim to have verified a fact externally.
+- If the source does not support a detail, omit it.
+
+EDITORIAL TRANSFORMATION
+- Rebuild the article from scratch instead of following the source paragraph by paragraph.
+- Identify the strongest supported angle: a turning point, contradiction, career shift, creative decision, historical context, or consequence.
+- Open with that angle rather than copying the source opening.
+- Reorder facts when doing so improves clarity or storytelling and does not distort chronology.
+- Group related facts into meaningful sections.
+- Explain why supported events matter using only context that can reasonably be derived from the supplied facts.
+- Connect cause and effect only when the source supports that relationship.
+- Add useful synthesis, transitions, and context, but never add unsupported factual claims.
+- Avoid repeating the same fact in multiple ways merely to increase length.
+- Do not pad the article with generic biography, vague praise, or filler.
 
 ORIGINALITY
-- Rewrite ALL prose from scratch.
-- Change sentence structure, paragraph structure, transitions, emphasis, and information order where reasonable.
-- Do not copy a complete sentence from the source.
+- Rewrite all prose from scratch.
+- Change sentence structure, paragraph structure, transitions, emphasis, and information order where useful.
+- Never copy a complete sentence from the source.
 - Avoid long exact phrases from the source except proper names, titles, dates, and unavoidable factual terms.
 - Do not merely replace words with synonyms.
-- Do not imitate the source site's promotional voice.
+- Do not imitate the source site's headline rhythm, promotional language, paragraph sequence, or CTA style.
 - Do not mention the source website.
-- Do not add citations or attribution unless the source text itself requires attribution for a claim.
+- Do not add citations or source attributions unless the supplied source itself requires attribution for a specific claim.
 
-EDITORIAL STYLE
+DEPTH AND LENGTH
+Use SOURCE WORD COUNT only as a planning signal, never as a quota.
+- If the source is under about 450 words, do NOT force the rewrite to 1,000 words. Produce the strongest complete article the supported facts allow, usually about 600–900 words when the material can sustain it.
+- If the source is about 450–800 words, aim for roughly 800–1,100 words when the facts support that depth.
+- If the source is over about 800 words, aim for roughly 1,000–1,300 words when natural.
+- A shorter factual article is better than a longer padded one.
+- Never invent detail just to hit a word target.
+
+STRUCTURE
+Use a coherent editorial arc appropriate to the story. A strong article may include:
+- a specific opening hook based on a supported fact or turning point;
+- concise background needed to understand the event;
+- the central conflict, decision, performance, recording, or career moment;
+- what happened next;
+- why the moment remains historically or culturally meaningful.
+
+Do NOT force the exact same structure on every article. Vary the organization based on the story.
+
+STYLE
 - Natural contemporary American English.
-- Clear, engaging, factual storytelling.
+- Human, specific, confident, and readable.
+- Prefer medium-length paragraphs suitable for mobile reading.
+- Use occasional short paragraphs only when they improve emphasis.
+- Avoid a page made entirely of one-sentence paragraphs.
+- Avoid exaggerated praise unless supported by facts.
+- Avoid generic AI language such as "delve into," "in the tapestry of," "timeless legacy," "this article explores," "journey through," or "stands as a testament."
 - No keyword stuffing.
-- No generic AI phrases such as "delve into," "in the tapestry of," "timeless legacy," or "this article explores."
-- No fake quotes.
 - No hashtags.
-- Do not add a call to action.
-- Keep approximately the same amount of factual substance as the source.
-- Aim for roughly 80% to 120% of the source length when possible.
+- No emojis.
+- No fake quotations.
+- No call to action.
+- Do not end with a generic question to the reader.
+
+HEADINGS
+- Use <h2> only when a meaningful section break improves readability.
+- Keep headings specific to the story, not generic labels such as "Early Life," "The Legacy," or "Conclusion" unless genuinely appropriate.
+- Do not overuse headings.
+
+MEDIA PRESERVATION
+Any token in the form [[MEDIA_0]], [[MEDIA_1]], etc. represents an existing image or video.
+- Preserve every MEDIA token EXACTLY once.
+- Keep it near the most relevant surrounding material.
+- Never alter, remove, duplicate, rename, or wrap a MEDIA token in invented markup.
 
 HTML OUTPUT
 - Return clean article-body HTML only inside the required JSON field.
 - Use <p> for normal paragraphs.
-- Use <h2> or <h3> only when a useful section heading improves readability.
+- Use <h2> or <h3> only when useful.
 - You may use <blockquote>, <ul>, <ol>, <li>, <strong>, and <em> when justified.
-- Do not output <html>, <head>, <body>, <script>, or CSS.
-- Any token in the form [[MEDIA_0]], [[MEDIA_1]], etc. represents an existing image or video.
-- Preserve every MEDIA token EXACTLY, once, and keep it in a sensible location near the surrounding material.
-- Never alter, remove, duplicate, or rename a MEDIA token.
+- Do not output <html>, <head>, <body>, <script>, style tags, CSS, markdown, title text, SEO fields, or commentary.
 
-FINAL CHECK
+FINAL QUALITY CHECK
 Before returning:
-1. Every factual statement must be supported by the source.
-2. The wording and sentence construction must be independently written.
-3. The rewritten article must retain the source's important factual substance.
-4. Every MEDIA token must remain unchanged.
-5. Return exactly one JSON field: rewritten_body.
+1. Every factual statement is supported by the supplied source.
+2. The article is not a sentence-by-sentence or paragraph-by-paragraph paraphrase.
+3. The article has a distinct editorial angle and independent structure.
+4. The article adds reader value through organization, context, synthesis, and clarity rather than invented facts.
+5. No unsupported quote, statistic, date, motive, relationship, or historical claim has been added.
+6. No repetitive filler was added just to increase word count.
+7. Every MEDIA token remains unchanged and appears exactly once.
+8. The result reads like an independent Back Then Stories article, not a rewritten copy.
+9. Return exactly one JSON field: rewritten_body.
 PROMPT;
     }
 
