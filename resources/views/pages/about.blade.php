@@ -29,21 +29,21 @@
         </p>
 
         <p>
-            We do not present fictional identities or invented expert profiles. Our editorial
-            byline is used to clearly identify the team responsible for the publication's content.
+            Our editorial team focuses on presenting well-researched, readable stories that help
+            readers rediscover the music, performers, cultural moments, and historical context that
+            shaped earlier generations.
         </p>
 
         <h2>What We Cover</h2>
         <p>
             Our primary coverage includes classic music, rock, pop, soul, country, Motown, folk,
-            jazz, film, television, entertainment history, nostalgia, cultural history, influential
-            performers, songwriters, recordings, concerts, and memorable moments from past
-            generations.
+            jazz, film, television, entertainment history, nostalgia, influential performers,
+            songwriters, recordings, concerts, and memorable cultural moments from past generations.
         </p>
 
         <p>
-            From time to time, we may also publish related human-interest or cultural stories when
-            they fit the broader editorial focus of Back Then Stories.
+            We may also publish selected human-interest or cultural stories when they are closely
+            connected to the broader historical and entertainment focus of Back Then Stories.
         </p>
 
         <h2>Our Editorial Approach</h2>

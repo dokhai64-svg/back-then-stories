@@ -44,8 +44,8 @@
         </ul>
 
         <p>
-            We review meaningful correction requests and may update published content when
-            appropriate.
+            We review correction requests carefully and update published content when a change
+            is supported by reliable information.
         </p>
 
         <h2>Copyright and Media Concerns</h2>
@@ -76,9 +76,9 @@
 
         <h2>Advertising and Business Inquiries</h2>
         <p>
-            For advertising, partnerships, sponsorship proposals, or other business-related
-            inquiries, please use the email address above and include
-            <strong>Business Inquiry</strong> in the subject line.
+            For advertising, partnerships, or other business-related inquiries, please use
+            the email address above and include <strong>Business Inquiry</strong> in the
+            subject line.
         </p>
 
         <p>
